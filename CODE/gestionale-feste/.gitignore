@@ -1,0 +1,25 @@
+# Dipendenze Node
+node_modules/
+
+# Variabili d'ambiente
+.env
+.env.local
+.env.production
+
+# Build frontend
+dist/
+build/
+
+# Log
+*.log
+npm-debug.log*
+
+# File di sistema Mac
+.DS_Store
+
+# File di sistema Windows
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

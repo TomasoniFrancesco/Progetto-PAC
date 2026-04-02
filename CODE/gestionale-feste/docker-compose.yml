@@ -1,0 +1,44 @@
+services:
+  database:
+    build: ./database
+    container_name: gestionale_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: gestionale_feste
+      MYSQL_USER: gestionale
+      MYSQL_PASSWORD: gestionale_password
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
+  backend:
+    build: ./backend
+    container_name: gestionale_backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_NAME: gestionale_feste
+      DB_USER: gestionale
+      DB_PASSWORD: gestionale_password
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - database
+
+  frontend:
+    build: ./frontend
+    container_name: gestionale_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
