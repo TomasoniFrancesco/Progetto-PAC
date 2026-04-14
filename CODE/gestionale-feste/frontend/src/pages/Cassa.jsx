@@ -22,12 +22,30 @@ export default function Cassa() {
     const [importoPagato, setImportoPagato] = useState('')
     const [caricamento, setCaricamento] = useState(true)
 
-    // Raggruppa le voci per settore di visualizzazione
-    const settori = [...new Set(voci.map(v => v.settore_visualizzazione))].filter(Boolean)
+    // Raggruppa le voci per settore di visualizzazione con ordine personalizzato
+    const ordineSettori = ['bar', 'primi', 'secondi', 'contorni', 'dolce', 'dolci']
+    const settori = [...new Set(voci.map(v => v.settore_visualizzazione))]
+        .filter(Boolean)
+        .sort((a, b) => {
+            const aNorm = String(a || '').trim().toLowerCase()
+            const bNorm = String(b || '').trim().toLowerCase()
+            const aIdx = ordineSettori.indexOf(aNorm)
+            const bIdx = ordineSettori.indexOf(bNorm)
+            const aPriority = aIdx === -1 ? Number.MAX_SAFE_INTEGER : aIdx
+            const bPriority = bIdx === -1 ? Number.MAX_SAFE_INTEGER : bIdx
+            if (aPriority !== bPriority) return aPriority - bPriority
+            return aNorm.localeCompare(bNorm, 'it')
+        })
 
     const totale = righe.reduce((acc, r) => acc + (r.prezzo * r.quantita), 0)
     const resto = importoPagato ? (parseFloat(importoPagato) - totale).toFixed(2) : null
     const colonneMenu = Math.min(Math.max(settori.length, 1), 6)
+    const ordinaVociSettore = (a, b) => {
+        const ordineA = Number(a.ordine_schermo ?? 0)
+        const ordineB = Number(b.ordine_schermo ?? 0)
+        if (ordineA !== ordineB) return ordineA - ordineB
+        return String(a.nome || '').localeCompare(String(b.nome || ''), 'it', { sensitivity: 'base' })
+    }
 
     useEffect(() => {
         caricaMenu()
@@ -132,17 +150,31 @@ export default function Cassa() {
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
 
             {/* Colonna sinistra: menu */}
-            <div style={{ flex: '0 0 66.666%', maxWidth: '66.666%', overflowY: 'auto', padding: 12, background: '#16213e' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colonneMenu}, minmax(0, 1fr))`, gap: 12, minHeight: 'calc(100vh - 24px)' }}>
+            <div style={{ flex: '0 0 66.666%', maxWidth: '66.666%', overflowY: 'auto', padding: '0 12px 12px 12px', background: '#16213e' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colonneMenu}, minmax(0, 1fr))`, gap: 12, alignItems: 'stretch', minHeight: 'calc(100vh - 12px)' }}>
                     {settori.map(settore => {
-                        const vociSettore = voci.filter(v => v.settore_visualizzazione === settore)
-                        const righeSettore = Math.max(vociSettore.length, 1)
+                        const vociSettore = voci
+                            .filter(v => v.settore_visualizzazione === settore)
+                            .sort(ordinaVociSettore)
+                        const usaRiempimento = vociSettore.length > 0 && vociSettore.length <= 6
                         return (
                     <div key={settore} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        <h3 style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1, position: 'sticky', top: 0, zIndex: 2, background: '#16213e', padding: '4px 0' }}>
+                        <h3 style={{ color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase', margin: 0, letterSpacing: 1, position: 'sticky', top: 0, zIndex: 10, background: '#16213e', padding: '12px 8px 10px 8px', minHeight: 44, display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                             {settore}
                         </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gridTemplateRows: `repeat(${righeSettore}, minmax(0, 1fr))`, gap: 8, flex: 1, minHeight: 0 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr',
+                                gridTemplateRows: usaRiempimento ? `repeat(${vociSettore.length}, minmax(96px, 1fr))` : undefined,
+                                gridAutoRows: usaRiempimento ? undefined : 'minmax(96px, auto)',
+                                gap: 8,
+                                paddingTop: 8,
+                                flex: 1,
+                                minHeight: 0,
+                                overflowY: usaRiempimento ? 'hidden' : 'auto'
+                            }}
+                        >
                             {vociSettore.map(voce => {
                                 const scorta = scorteMap[voce.id]
                                 const esaurito = scorta && scorta.attiva && scorta.quantita === 0
@@ -160,8 +192,7 @@ export default function Cassa() {
                                             textAlign: 'center',
                                             lineHeight: 1.3,
                                             opacity: esaurito ? 0.4 : 1,
-                                            height: '100%',
-                                            minHeight: 0
+                                            minHeight: 96
                                         }}
                                     >
                                         {voce.nome}
