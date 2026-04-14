@@ -56,7 +56,7 @@ A quel punto aprite il browser e andate su:
   Cassa:   http://localhost:5173/cassa
   Admin:   http://localhost:5173/admin
   API:     http://localhost:3001/api/health
-
+  API(Ordini): http://localhost:3001/api/ordini 
 
 DALLA SECONDA VOLTA IN POI
 --------------------------
@@ -160,7 +160,7 @@ NOTE
 Ogni modifica al codice richiede un rebuild per essere applicata:
 
   docker compose down
-  docker compose up --build
+    
 
 I log in tempo reale si vedono con:
 

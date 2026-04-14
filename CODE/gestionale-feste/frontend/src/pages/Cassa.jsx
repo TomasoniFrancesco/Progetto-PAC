@@ -139,7 +139,7 @@ export default function Cassa() {
                         const righeSettore = Math.max(vociSettore.length, 1)
                         return (
                     <div key={settore} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        <h3 style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+                        <h3 style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1, position: 'sticky', top: 0, zIndex: 2, background: '#16213e', padding: '4px 0' }}>
                             {settore}
                         </h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gridTemplateRows: `repeat(${righeSettore}, minmax(0, 1fr))`, gap: 8, flex: 1, minHeight: 0 }}>

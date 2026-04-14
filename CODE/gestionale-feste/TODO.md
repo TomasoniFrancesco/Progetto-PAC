@@ -21,8 +21,8 @@
 
 ## 2. Interfaccia — parte sinistra (menù)
 
-- [ ] Layout a colonne (max 6), larghezza adattiva (~2/3 dello schermo)
-- [ ] Altezza celle auto-ridimensionata per riempire tutta la colonna
+- [x] Layout a colonne (max 6), larghezza adattiva (~2/3 dello schermo)
+- [x] Altezza celle auto-ridimensionata per riempire tutta la colonna
 - [ ] Intestazione fissa in cima ad ogni colonna con nome settore
 - [ ] Tasto per ogni pietanza con colore personalizzabile
 - [ ] Ogni clic aggiunge la pietanza al riepilogo (o incrementa quantità se già presente)
