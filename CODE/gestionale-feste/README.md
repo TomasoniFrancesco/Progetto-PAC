@@ -32,8 +32,8 @@ A regime i tre servizi saranno accessibili a:
 |------------|---------------------------|
 | Cassa      | http://localhost:5173/cassa |
 | Admin      | http://localhost:5173/admin |
-| API backend| http://localhost:3001/api   |
-
+| API backend| http://localhost:3001/api  |
+| API ordini | http://localhost:3001/api/ordini  |
 ## Struttura del progetto
 
     gestionale-feste/

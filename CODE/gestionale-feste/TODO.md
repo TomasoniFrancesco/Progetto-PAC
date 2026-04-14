@@ -21,14 +21,14 @@
 
 ## 2. Interfaccia — parte sinistra (menù)
 
-- [ ] Layout a colonne (max 6), larghezza adattiva (~2/3 dello schermo)
-- [ ] Altezza celle auto-ridimensionata per riempire tutta la colonna
-- [ ] Intestazione fissa in cima ad ogni colonna con nome settore
-- [ ] Tasto per ogni pietanza con colore personalizzabile
-- [ ] Ogni clic aggiunge la pietanza al riepilogo (o incrementa quantità se già presente)
-- [ ] Visualizzare solo le pietanze con flag `visualizzare_schermo` attivo
-- [ ] Ordinamento celle: crescente per `ordine_schermo`, parità → alfabetico
-
+- [x] Layout a colonne (max 6), larghezza adattiva (~2/3 dello schermo)
+- [x] Altezza celle auto-ridimensionata per riempire tutta la colonna
+- [x] Intestazione fissa in cima ad ogni colonna con nome settore
+- [x] Tasto per ogni pietanza con colore personalizzabile ## questa opzione l'ho messa in admin
+- [x] Ogni clic aggiunge la pietanza al riepilogo (o incrementa quantità se già presente)
+- [x] Visualizzare solo le pietanze con flag `visualizzare_schermo` attivo ## anche questo è in 
+## admin ma con il flag 'visibile'
+- [x] Ordinamento celle: crescente per `ordine_schermo`, a parità di `ordine_schermo` → alfabetico ## io ho inteso così per parità, spero sia giusto, se hanno ordine uguale sono ordinati per ordine alfabetico
 ---
 
 ## 3. Interfaccia — parte destra (riepilogo ordine)

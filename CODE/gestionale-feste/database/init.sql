@@ -127,11 +127,35 @@ INSERT INTO utente (username, password_hash, ruolo) VALUES
 ('cassa1', '$2b$10$placeholder_hash_cassa', 'cassiere');
 
 INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo) VALUES
-('P001', 'Risotto ai funghi', 9.00, 'Primo', 'Primi', 'cucina', '#E8A838', 1),
-('P002', 'Polenta taragna', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
+('P001', 'Risotto ai funghi', 9.00, 'Primo', 'Primi', 'cucina', '#E8A838', 3),
+('P002', 'Polenta taragna', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 3),
+('P003', 'Lasagne al forno', 8.50, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
+('P004', 'Pasta al pomodoro', 7.00, 'Primo', 'Primi', 'cucina', '#E8A838',1),
+('P005', 'Gnocchi al ragu', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
+('P006', 'Penne all arrabbiata', 7.50, 'Primo', 'Primi', 'cucina', '#E8A838', 1),
+
 ('S001', 'Costine alla griglia', 12.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),
-('B001', 'Birra media', 3.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
-('B002', 'Acqua', 1.00, 'Bevanda', 'Bar', 'bar', '#2980B9', 2);
+('S002', 'Salsiccia alla piastra', 9.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),
+('S003', 'Pollo arrosto', 10.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
+('S004', 'Spezzatino', 11.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
+('S005', 'Cotoletta', 9.50, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
+
+('C001', 'Patatine fritte', 4.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 1),
+('C002', 'Insalata mista', 3.50, 'Contorno', 'Contorni', 'cucina', '#27AE60', 2),
+('C003', 'Verdure grigliate', 5.00, 'Contorno', 'Contorni', 'griglia', '#27AE60', 2),
+('C004', 'Fagioli', 3.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 2),
+
+('B001', 'Birra media', 3.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 3),
+('B002', 'Acqua', 1.00, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
+('B003', 'Cola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 2),
+('B004', 'Aranciata', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 2),
+('B005', 'Vino rosso calice', 3.00, 'Bevanda', 'Bar', 'bar', '#2980B9',3),
+('B006', 'Birra piccola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 3),
+
+('D001', 'Tiramisu', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1),
+('D002', 'Crostata', 4.00, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 2),
+('D003', 'Gelato coppetta', 3.50, 'Dolce', 'Dolci', 'bar', '#8E44AD', 1),
+('D004', 'Panna cotta', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1);
 
 INSERT INTO allergene (nome, descr) VALUES
 ('Glutine', 'Cereali contenenti glutine'),
