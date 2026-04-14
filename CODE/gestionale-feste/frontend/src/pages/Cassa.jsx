@@ -27,6 +27,7 @@ export default function Cassa() {
 
     const totale = righe.reduce((acc, r) => acc + (r.prezzo * r.quantita), 0)
     const resto = importoPagato ? (parseFloat(importoPagato) - totale).toFixed(2) : null
+    const colonneMenu = Math.min(Math.max(settori.length, 1), 6)
 
     useEffect(() => {
         caricaMenu()
@@ -131,14 +132,18 @@ export default function Cassa() {
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
 
             {/* Colonna sinistra: menu */}
-            <div style={{ flex: 2, overflowY: 'auto', padding: 12, background: '#16213e' }}>
-                {settori.map(settore => (
-                    <div key={settore} style={{ marginBottom: 24 }}>
+            <div style={{ flex: '0 0 66.666%', maxWidth: '66.666%', overflowY: 'auto', padding: 12, background: '#16213e' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colonneMenu}, minmax(0, 1fr))`, gap: 12, minHeight: 'calc(100vh - 24px)' }}>
+                    {settori.map(settore => {
+                        const vociSettore = voci.filter(v => v.settore_visualizzazione === settore)
+                        const righeSettore = Math.max(vociSettore.length, 1)
+                        return (
+                    <div key={settore} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                         <h3 style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
                             {settore}
                         </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
-                            {voci.filter(v => v.settore_visualizzazione === settore).map(voce => {
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gridTemplateRows: `repeat(${righeSettore}, minmax(0, 1fr))`, gap: 8, flex: 1, minHeight: 0 }}>
+                            {vociSettore.map(voce => {
                                 const scorta = scorteMap[voce.id]
                                 const esaurito = scorta && scorta.attiva && scorta.quantita === 0
                                 return (
@@ -154,7 +159,9 @@ export default function Cassa() {
                                             fontSize: '0.9rem',
                                             textAlign: 'center',
                                             lineHeight: 1.3,
-                                            opacity: esaurito ? 0.4 : 1
+                                            opacity: esaurito ? 0.4 : 1,
+                                            height: '100%',
+                                            minHeight: 0
                                         }}
                                     >
                                         {voce.nome}
@@ -166,11 +173,12 @@ export default function Cassa() {
                             })}
                         </div>
                     </div>
-                ))}
+                )})}
+                </div>
             </div>
 
             {/* Colonna destra: riepilogo ordine */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0f3460', minWidth: 280, maxWidth: 360 }}>
+            <div style={{ flex: '1 1 33.334%', display: 'flex', flexDirection: 'column', background: '#0f3460', minWidth: 280 }}>
 
                 {/* Header */}
                 <div style={{ padding: '12px 16px', background: '#e94560', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
