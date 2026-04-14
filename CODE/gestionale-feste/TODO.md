@@ -25,7 +25,7 @@
 - [x] Altezza celle auto-ridimensionata per riempire tutta la colonna
 - [ ] Intestazione fissa in cima ad ogni colonna con nome settore
 - [ ] Tasto per ogni pietanza con colore personalizzabile
-- [ ] Ogni clic aggiunge la pietanza al riepilogo (o incrementa quantità se già presente)
+- [x] Ogni clic aggiunge la pietanza al riepilogo (o incrementa quantità se già presente)
 - [ ] Visualizzare solo le pietanze con flag `visualizzare_schermo` attivo
 - [ ] Ordinamento celle: crescente per `ordine_schermo`, parità → alfabetico
 

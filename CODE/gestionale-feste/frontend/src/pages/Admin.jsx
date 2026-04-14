@@ -44,6 +44,14 @@ export default function Admin() {
         caricaDati()
     }
 
+    async function aggiornaColore(voceId, colore) {
+        await fetch(`${API}/menu/${voceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ colore_tasto: colore })
+        })
+    }
+
     const tabs = [
         { id: 'menu', label: 'Menu' },
         { id: 'scorte', label: 'Scorte' },
@@ -86,6 +94,7 @@ export default function Admin() {
                                 <th style={stileCellaHeader}>Prezzo</th>
                                 <th style={stileCellaHeader}>Settore</th>
                                 <th style={stileCellaHeader}>Stampa</th>
+                                <th style={stileCellaHeader}>Colore tasto</th>
                                 <th style={stileCellaHeader}>Visibile</th>
                                 <th style={stileCellaHeader}></th>
                             </tr>
@@ -98,6 +107,19 @@ export default function Admin() {
                                     <td style={stileCella}>{parseFloat(voce.prezzo).toFixed(2)} €</td>
                                     <td style={stileCella}>{voce.settore_visualizzazione}</td>
                                     <td style={stileCella}>{voce.settore_stampa}</td>
+                                    <td style={stileCella}>
+                                        <input
+                                            type="color"
+                                            value={voce.colore_tasto || '#4A90D9'}
+                                            onChange={(e) => {
+                                                const colore = e.target.value
+                                                setVoci(prev => prev.map(v => v.id === voce.id ? { ...v, colore_tasto: colore } : v))
+                                            }}
+                                            onBlur={(e) => aggiornaColore(voce.id, e.target.value)}
+                                            style={{ width: 40, height: 28, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                                            title="Colore pulsante in cassa"
+                                        />
+                                    </td>
                                     <td style={stileCella}>
                                         <span style={{ color: voce.visibile ? '#2ecc71' : '#e74c3c' }}>
                                             {voce.visibile ? 'si' : 'no'}
