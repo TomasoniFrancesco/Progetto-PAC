@@ -25,14 +25,24 @@ CREATE TABLE voce (
     modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla'
 );
 
--- Scorte per voce
+-- Scorte per voce (una riga per pietanza)
 CREATE TABLE scorta (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    voce_id INT NOT NULL,
+    voce_id INT NOT NULL UNIQUE,
     quantita INT NOT NULL DEFAULT 0,
     soglia_giallo INT NOT NULL DEFAULT 10,
     soglia_rosso INT NOT NULL DEFAULT 3,
     attiva TINYINT(1) NOT NULL DEFAULT 0,
+    FOREIGN KEY (voce_id) REFERENCES voce(id) ON DELETE CASCADE
+);
+
+-- Storico rifornimenti scorte
+CREATE TABLE scorta_storico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    voce_id INT NOT NULL,
+    quantita INT NOT NULL,
+    data_rifornimento DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    note VARCHAR(255),
     FOREIGN KEY (voce_id) REFERENCES voce(id) ON DELETE CASCADE
 );
 
@@ -50,6 +60,15 @@ CREATE TABLE voce_contatore (
     PRIMARY KEY (voce_id, contatore_id),
     FOREIGN KEY (voce_id) REFERENCES voce(id) ON DELETE CASCADE,
     FOREIGN KEY (contatore_id) REFERENCES contatore_aggregato(id) ON DELETE CASCADE
+);
+
+-- Composizione pietanze aggregate (una pietanza composta da più pietanze singole)
+CREATE TABLE voce_composizione (
+    voce_aggregata_id INT NOT NULL,
+    voce_componente_id INT NOT NULL,
+    PRIMARY KEY (voce_aggregata_id, voce_componente_id),
+    FOREIGN KEY (voce_aggregata_id) REFERENCES voce(id) ON DELETE CASCADE,
+    FOREIGN KEY (voce_componente_id) REFERENCES voce(id) ON DELETE CASCADE
 );
 
 -- Allergeni
