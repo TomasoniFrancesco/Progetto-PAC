@@ -2,17 +2,28 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET /api/ordini - lista ordini del giorno
+// GET /api/ordini - lista ordini del giorno con righe
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query(
-            `SELECT o.*, u.username 
-             FROM ordine o 
-             LEFT JOIN utente u ON o.utente_id = u.id
-             WHERE DATE(o.timestamp) = CURDATE()
-             ORDER BY o.timestamp DESC`
+        const [ordini] = await db.query(
+            `SELECT id, tavolo, stato, asporto, sconto, tipo_sconto, totale, importo_pagato, timestamp
+             FROM ordine
+             WHERE DATE(timestamp) = CURDATE()
+             ORDER BY timestamp DESC`
         );
-        res.json(rows);
+
+        for (const ordine of ordini) {
+            const [righe] = await db.query(
+                `SELECT r.voce_id, r.quantita, v.nome, v.prezzo
+                 FROM ordine_riga r
+                 JOIN voce v ON r.voce_id = v.id
+                 WHERE r.ordine_id = ?`,
+                [ordine.id]
+            );
+            ordine.righe = righe;
+        }
+
+        res.json(ordini);
     } catch (err) {
         res.status(500).json({ errore: err.message });
     }
