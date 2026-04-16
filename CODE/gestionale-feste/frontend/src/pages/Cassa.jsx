@@ -87,8 +87,13 @@ export default function Cassa() {
 
     const ordineSettori = ['bar', 'primi', 'secondi', 'contorni', 'dolce', 'dolci']
 
-    const ordinaVoci = (a, b) =>
-        String(a.nome).localeCompare(String(b.nome), 'it', { sensitivity: 'base' })
+    // Ordinamento 3 livelli: categoria → nome alfabetico
+    const ordinaVoci = (a, b) => {
+        const catA = String(a.categoria || '').toLowerCase()
+        const catB = String(b.categoria || '').toLowerCase()
+        if (catA !== catB) return catA.localeCompare(catB, 'it', { sensitivity: 'base' })
+        return String(a.nome).localeCompare(String(b.nome), 'it', { sensitivity: 'base' })
+    }
 
     // Raggruppa voci per settore, poi per colore all'interno di ogni settore
     const vociPerSettore = ordineSettori.reduce((acc, settore) => {
