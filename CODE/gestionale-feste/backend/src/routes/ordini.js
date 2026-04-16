@@ -173,7 +173,14 @@ router.post('/:id/conferma', async (req, res) => {
 
         // Notifica scorte aggiornate via WebSocket
         const [scorteAggiornate] = await db.query(
-            'SELECT s.*, v.nome FROM scorta s JOIN voce v ON s.voce_id = v.id'
+            `SELECT s.*,
+                CASE
+                    WHEN s.quantita = 0 THEN 'esaurito'
+                    WHEN s.quantita <= s.soglia_rosso THEN 'critico'
+                    WHEN s.quantita <= s.soglia_giallo THEN 'attenzione'
+                    ELSE 'disponibile'
+                END AS stato_visivo
+             FROM scorta s`
         );
         io.emit('scorte_aggiornate', scorteAggiornate);
 

@@ -143,12 +143,22 @@ router.post('/', async (req, res) => {
         const codice = await generaCodice(categoria);
 
         const [risultato] = await db.query(
-            `INSERT INTO voce 
+            `INSERT INTO voce
              (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo, asportabile, modalita_stampa)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [codice, nome.trim(), prezzo || 0, categoria || null, settore_visualizzazione || null, settore_stampa || null, colore_tasto || '#4A90D9', ordine_schermo || 0, asportabile !== false ? 1 : 0, modalita_stampa || 'singola_multipla']
         );
-        res.status(201).json({ id: risultato.insertId, codice });
+
+        const voceId = risultato.insertId;
+
+        // Crea scorta di default con 10 quantità
+        await db.query(
+            `INSERT INTO scorta (voce_id, quantita, soglia_giallo, soglia_rosso, attiva)
+             VALUES (?, ?, ?, ?, ?)`,
+            [voceId, 10, 10, 3, 1]
+        );
+
+        res.status(201).json({ id: voceId, codice });
     } catch (err) {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ errore: 'Codice generato già in uso, riprovare' });
@@ -190,6 +200,13 @@ router.post('/aggregata', async (req, res) => {
                 [voceId, compId]
             );
         }
+
+        // Crea scorta di default con 10 quantità
+        await conn.query(
+            `INSERT INTO scorta (voce_id, quantita, soglia_giallo, soglia_rosso, attiva)
+             VALUES (?, ?, ?, ?, ?)`,
+            [voceId, 10, 10, 3, 1]
+        );
 
         await conn.commit();
         res.status(201).json({ id: voceId, codice });

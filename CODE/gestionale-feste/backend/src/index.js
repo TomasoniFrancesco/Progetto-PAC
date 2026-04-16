@@ -99,6 +99,52 @@ async function avviaServer() {
                 console.log('Migrazione scorta UNIQUE:', errMigrazione.message);
             }
 
+            // Migrazione: rimappa TUTTI i colori al più vicino nella palette soft
+            try {
+                const PALETTE = ['#4A90D9', '#5BA85E', '#D45454', '#E8B84B', '#9370BE', '#4A4E5A'];
+
+                function hexToRgb(hex) {
+                    const h = hex.replace('#', '');
+                    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+                }
+                function distanza(a, b) {
+                    return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
+                }
+                function coloreVicino(hex) {
+                    try {
+                        const rgb = hexToRgb(hex);
+                        return PALETTE.reduce((best, p) => distanza(rgb, hexToRgb(p)) < distanza(rgb, hexToRgb(best)) ? p : best);
+                    } catch { return '#4A90D9'; }
+                }
+
+                const [voci] = await db.query('SELECT id, colore_tasto FROM voce');
+                for (const voce of voci) {
+                    const nuovo = coloreVicino(voce.colore_tasto || '#4A90D9');
+                    if (nuovo !== voce.colore_tasto) {
+                        await db.query('UPDATE voce SET colore_tasto = ? WHERE id = ?', [nuovo, voce.id]);
+                    }
+                }
+                console.log('Migrazione palette: colori normalizzati');
+            } catch (errMigrazione) {
+                console.log('Migrazione palette:', errMigrazione.message);
+            }
+
+            // Migrazione: inizializza scorte a 10 per tutti i prodotti
+            try {
+                // Aggiorna scorte esistenti a 10
+                await db.query(`UPDATE scorta SET quantita = 10`);
+
+                // Crea scorte mancanti per i prodotti che non le hanno
+                await db.query(`
+                    INSERT INTO scorta (voce_id, quantita, soglia_giallo, soglia_rosso, attiva)
+                    SELECT id, 10, 10, 3, 1 FROM voce v
+                    WHERE NOT EXISTS (SELECT 1 FROM scorta s WHERE s.voce_id = v.id)
+                `);
+                console.log('Migrazione scorte: tutte impostate a quantità 10');
+            } catch (errMigrazione) {
+                console.log('Migrazione scorte default:', errMigrazione.message);
+            }
+
             console.log('Migrazione completata');
 
             break;
