@@ -1,6 +1,30 @@
 import React, { useState, useEffect } from 'react'
+import { io } from 'socket.io-client'
 
 const API = '/api'
+const socket = io('/', { path: '/socket.io' })
+
+const PALETTE = [
+    { hex: '#4A90D9', label: 'Blu'    },
+    { hex: '#5BA85E', label: 'Verde'  },
+    { hex: '#D45454', label: 'Rosso'  },
+    { hex: '#E8B84B', label: 'Giallo' },
+    { hex: '#9370BE', label: 'Viola'  },
+    { hex: '#4A4E5A', label: 'Nero'   },
+]
+
+const COLORE_SETTORE = {
+    'bar':      '#4A90D9',
+    'primi':    '#5BA85E',
+    'secondi':  '#D45454',
+    'contorni': '#E8B84B',
+    'dolci':    '#9370BE',
+    'dolce':    '#9370BE',
+}
+
+function coloreDefaultPerSettore(settore) {
+    return COLORE_SETTORE[String(settore || '').toLowerCase()] || '#4A90D9'
+}
 
 // Ordine fisso delle categorie per la modale aggregata
 const ORDINE_SETTORI = ['Primi', 'Secondi', 'Contorni', 'Dolci', 'Bar']
@@ -25,14 +49,31 @@ const Icona = {
 export default function Admin() {
     const [tab, setTab] = useState('menu')
     const [stampanti, setStampanti] = useState([])
+    const [scorte, setScorte] = useState([])
+    const [ordini, setOrdini] = useState([])
     const [caricamento, setCaricamento] = useState(true)
     const [settoreSelezionato, setSettoreSelezionato] = useState(null)
 
     useEffect(() => {
         if (tab === 'stampanti') {
             caricaStampanti()
+        } else if (tab === 'scorte') {
+            caricaScorte()
+        } else if (tab === 'cronologia') {
+            caricaOrdini()
         } else {
             setCaricamento(false)
+        }
+    }, [tab])
+
+    useEffect(() => {
+        if (tab === 'scorte' || tab === 'cronologia') {
+            socket.on('scorte_aggiornate', () => {
+                if (tab === 'scorte') caricaScorte()
+            })
+        }
+        return () => {
+            socket.off('scorte_aggiornate')
         }
     }, [tab])
 
@@ -45,57 +86,140 @@ export default function Admin() {
         finally { setCaricamento(false) }
     }
 
+    async function caricaScorte() {
+        setCaricamento(true)
+        try {
+            const res = await fetch(`${API}/scorte`)
+            const data = await res.json()
+            setScorte(data)
+        } catch (err) { console.error(err) }
+        finally { setCaricamento(false) }
+    }
+
+    async function caricaOrdini() {
+        setCaricamento(true)
+        try {
+            const res = await fetch(`${API}/ordini`)
+            const data = await res.json()
+            setOrdini(data.reverse())
+        } catch (err) { console.error(err) }
+        finally { setCaricamento(false) }
+    }
+
     const tabs = [
         { id: 'menu', label: 'Menu' },
+        { id: 'scorte', label: 'Gestione Scorte' },
+        { id: 'cronologia', label: 'Cronologia Ordini' },
         { id: 'stampanti', label: 'Stampanti' }
     ]
 
+    const C = {
+        primary: '#005147', primaryContainer: '#006b5e',
+        surface: '#faf9fc', surfaceLow: '#f5f3f7', surfaceHigh: '#e9e7eb',
+        surfaceHighest: '#e3e2e6', outline: '#bec9c5',
+        onSurface: '#1b1b1e', onSurfaceVariant: '#3e4946',
+        secondary: '#425e91', primaryFixed: '#9ff2e1', onPrimaryFixed: '#00201b',
+    }
+
+    const navItems = [
+        { id: 'menu', label: 'Menu', icon: '🍽' },
+        { id: 'scorte', label: 'Gestione Scorte', icon: '📦' },
+        { id: 'cronologia', label: 'Cronologia Ordini', icon: '🕓' },
+        { id: 'stampanti', label: 'Stampanti', icon: '🖨' },
+    ]
+
     return (
-        <div style={{ minHeight: '100vh', background: '#1a1a2e', padding: 24 }}>
-            <h1 style={{ marginBottom: 24, fontSize: '1.4rem', fontWeight: 800 }}>Pannello Admin</h1>
+        <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, sans-serif', background: C.surfaceLow, color: C.onSurface }}>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
-                {tabs.map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => { setTab(t.id); setSettoreSelezionato(null) }}
-                        style={{
-                            padding: '10px 22px',
-                            background: tab === t.id
-                                ? 'linear-gradient(135deg, #e94560, #c0392b)'
-                                : 'rgba(255,255,255,0.06)',
-                            color: '#fff',
-                            borderRadius: 10, fontSize: '0.9rem', fontWeight: 600,
-                            letterSpacing: 0.3, transition: 'all 0.2s ease',
-                            border: tab === t.id ? 'none' : '1px solid rgba(255,255,255,0.08)'
-                        }}
-                    >{t.label}</button>
-                ))}
-            </div>
+            {/* ── SIDEBAR ── */}
+            <aside style={{ width: 240, flexShrink: 0, position: 'fixed', top: 0, left: 0, height: '100vh', background: C.surface, borderRight: `1px solid ${C.surfaceHigh}`, display: 'flex', flexDirection: 'column', zIndex: 40, boxShadow: '4px 0 16px rgba(27,27,30,0.04)' }}>
 
-            {caricamento && <div style={{ color: '#888' }}>Caricamento...</div>}
-
-            {tab === 'menu' && (
-                settoreSelezionato
-                    ? <VistaPietanze settore={settoreSelezionato} onTorna={() => setSettoreSelezionato(null)} />
-                    : <VistaSettori onSeleziona={setSettoreSelezionato} />
-            )}
-
-            {!caricamento && tab === 'stampanti' && (
-                <div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                        Stampanti configurate
+                {/* Logo */}
+                <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.surfaceHigh}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🎪</div>
+                        <div>
+                            <div style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 16, color: C.primary }}>FestivalPOS</div>
+                            <div style={{ fontSize: 11, color: C.onSurfaceVariant }}>Admin Panel</div>
+                        </div>
                     </div>
-                    <table className="pietanze-tabella">
-                        <thead><tr><th>Reparto</th><th>Indirizzo IP</th><th>Porta</th><th>Stato</th></tr></thead>
-                        <tbody>
-                            {stampanti.map(s => (
-                                <tr key={s.id}><td>{s.reparto}</td><td>{s.indirizzo_ip}</td><td>{s.porta}</td><td>{s.stato}</td></tr>
-                            ))}
-                        </tbody>
-                    </table>
                 </div>
-            )}
+
+                {/* Nav */}
+                <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {navItems.map(item => {
+                        const attivo = tab === item.id
+                        return (
+                            <button key={item.id} onClick={() => { setTab(item.id); setSettoreSelezionato(null) }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: 'none', background: attivo ? C.surfaceHighest : 'transparent', color: attivo ? C.primary : C.onSurfaceVariant, fontWeight: attivo ? 700 : 500, fontSize: 14, cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'background 0.15s, color 0.15s' }}
+                                onMouseEnter={e => { if (!attivo) e.currentTarget.style.background = C.surfaceLow }}
+                                onMouseLeave={e => { if (!attivo) e.currentTarget.style.background = 'transparent' }}
+                            >
+                                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                                {item.label}
+                            </button>
+                        )
+                    })}
+                </nav>
+
+                {/* Footer sidebar */}
+                <div style={{ padding: '12px 10px', borderTop: `1px solid ${C.surfaceHigh}` }}>
+                    <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceLow}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        ← Vai alla Cassa
+                    </a>
+                </div>
+            </aside>
+
+            {/* ── CONTENUTO PRINCIPALE ── */}
+            <main style={{ marginLeft: 240, flex: 1, display: 'flex', flexDirection: 'column' }}>
+
+                {/* Header */}
+                <header style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(250,249,252,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.surfaceHigh}`, padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                        <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 18, color: C.primary }}>
+                            {navItems.find(n => n.id === tab)?.label}
+                        </span>
+                    </div>
+                </header>
+
+                {/* Body */}
+                <div style={{ padding: 32, flex: 1 }}>
+
+                    {caricamento && <div style={{ color: '#6e7976', padding: 20 }}>Caricamento...</div>}
+
+                    {tab === 'menu' && (
+                        settoreSelezionato
+                            ? <VistaPietanze settore={settoreSelezionato} onTorna={() => setSettoreSelezionato(null)} />
+                            : <VistaSettori onSeleziona={setSettoreSelezionato} />
+                    )}
+
+                    {!caricamento && tab === 'scorte' && (
+                        <GestioneScorte scorte={scorte} onAggiornato={caricaScorte} />
+                    )}
+
+                    {!caricamento && tab === 'cronologia' && (
+                        <CronologiaOrdini ordini={ordini} />
+                    )}
+
+                    {!caricamento && tab === 'stampanti' && (
+                        <div>
+                            <div style={{ fontFamily: 'Public Sans, sans-serif', fontSize: '1.1rem', fontWeight: 800, color: C.primary, marginBottom: 16 }}>
+                                Stampanti configurate
+                            </div>
+                            <table className="pietanze-tabella">
+                                <thead><tr><th>Reparto</th><th>Indirizzo IP</th><th>Porta</th><th>Stato</th></tr></thead>
+                                <tbody>
+                                    {stampanti.map(s => (
+                                        <tr key={s.id}><td>{s.reparto}</td><td>{s.indirizzo_ip}</td><td>{s.porta}</td><td>{s.stato}</td></tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </main>
         </div>
     )
 }
@@ -699,7 +823,7 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
         categoria: voce?.categoria || categoriaDefault || '',
         settore_visualizzazione: voce?.settore_visualizzazione || settoreDefault || '',
         settore_stampa: voce?.settore_stampa || '',
-        colore_tasto: voce?.colore_tasto || '#4A90D9',
+        colore_tasto: voce?.colore_tasto || coloreDefaultPerSettore(settoreDefault),
         ordine_schermo: voce?.ordine_schermo ?? 0,
         asportabile: voce ? !!voce.asportabile : true,
         modalita_stampa: voce?.modalita_stampa || 'singola_multipla'
@@ -712,6 +836,13 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
     useEffect(() => {
         fetch(`${API}/menu/opzioni`).then(r => r.json()).then(setOpzioni).catch(console.error)
     }, [])
+
+    // Auto-aggiorna colore quando cambia il settore (solo per nuove pietanze)
+    useEffect(() => {
+        if (!isModifica) {
+            aggiornaCampo('colore_tasto', coloreDefaultPerSettore(form.settore_visualizzazione))
+        }
+    }, [form.settore_visualizzazione])
 
     function aggiornaCampo(campo, valore) { setForm(prev => ({ ...prev, [campo]: valore })) }
 
@@ -771,9 +902,13 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
                     </div>
                     <div>
                         <label className="campo-label">Colore tasto</label>
-                        <div className="campo-colore-wrap">
-                            <input type="color" className="campo-colore-input" value={form.colore_tasto} onChange={e => aggiornaCampo('colore_tasto', e.target.value)} />
-                            <input className="campo-input" type="text" value={form.colore_tasto} onChange={e => aggiornaCampo('colore_tasto', e.target.value)} style={{ flex: 1 }} />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            {PALETTE.map(p => (
+                                <button key={p.hex} type="button" title={p.label}
+                                    onClick={() => aggiornaCampo('colore_tasto', p.hex)}
+                                    style={{ width: 32, height: 32, borderRadius: '50%', background: p.hex, border: form.colore_tasto === p.hex ? '3px solid #005147' : '3px solid transparent', outline: form.colore_tasto === p.hex ? '2px solid #005147' : 'none', outlineOffset: 2, cursor: 'pointer', flexShrink: 0 }}
+                                />
+                            ))}
                         </div>
                     </div>
                     <div className="campo-full">
@@ -825,7 +960,7 @@ function ModalePietanzaAggregata({ voce, settoreDefault, categoriaDefault, onChi
         categoria: voce?.categoria || categoriaDefault || '',
         settore_visualizzazione: voce?.settore_visualizzazione || settoreDefault || '',
         settore_stampa: voce?.settore_stampa || '',
-        colore_tasto: voce?.colore_tasto || '#4A90D9',
+        colore_tasto: voce?.colore_tasto || coloreDefaultPerSettore(settoreDefault),
     })
     const [tutteLePietanze, setTutteLePietanze] = useState([])
     const [componentiSelezionati, setComponentiSelezionati] = useState([])
@@ -833,6 +968,13 @@ function ModalePietanzaAggregata({ voce, settoreDefault, categoriaDefault, onChi
     const [opzioni, setOpzioni] = useState({ categorie: [], settori_stampa: [], settori_visualizzazione: [] })
     const [errore, setErrore] = useState('')
     const [salvataggio, setSalvataggio] = useState(false)
+
+    // Auto-aggiorna colore quando cambia il settore (solo per nuove pietanze)
+    useEffect(() => {
+        if (!isModifica) {
+            aggiornaCampo('colore_tasto', coloreDefaultPerSettore(form.settore_visualizzazione))
+        }
+    }, [form.settore_visualizzazione])
 
     useEffect(() => {
         Promise.all([
@@ -982,15 +1124,23 @@ function ModalePietanzaAggregata({ voce, settoreDefault, categoriaDefault, onChi
                         </div>
                         <div className="aggregata-dettagli__row">
                             <div style={{ flex: 1 }}>
+                                <label className="campo-label">Settore in cassa</label>
+                                <DropdownConInput value={form.settore_visualizzazione} onChange={val => aggiornaCampo('settore_visualizzazione', val)} opzioni={opzioni.settori_visualizzazione} placeholder="Seleziona..." />
+                            </div>
+                            <div style={{ flex: 1 }}>
                                 <label className="campo-label">Reparto stampa</label>
                                 <DropdownConInput value={form.settore_stampa} onChange={val => aggiornaCampo('settore_stampa', val)} opzioni={opzioni.settori_stampa} placeholder="Seleziona..." />
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <label className="campo-label">Colore tasto</label>
-                                <div className="campo-colore-wrap">
-                                    <input type="color" className="campo-colore-input" value={form.colore_tasto} onChange={e => aggiornaCampo('colore_tasto', e.target.value)} />
-                                    <input className="campo-input" type="text" value={form.colore_tasto} onChange={e => aggiornaCampo('colore_tasto', e.target.value)} style={{ flex: 1 }} />
-                                </div>
+                        </div>
+                        <div>
+                            <label className="campo-label">Colore tasto</label>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                {PALETTE.map(p => (
+                                    <button key={p.hex} type="button" title={p.label}
+                                        onClick={() => aggiornaCampo('colore_tasto', p.hex)}
+                                        style={{ width: 32, height: 32, borderRadius: '50%', background: p.hex, border: form.colore_tasto === p.hex ? '3px solid #005147' : '3px solid transparent', outline: form.colore_tasto === p.hex ? '2px solid #005147' : 'none', outlineOffset: 2, cursor: 'pointer', flexShrink: 0 }}
+                                    />
+                                ))}
                             </div>
                         </div>
                         <div>
@@ -1019,6 +1169,263 @@ function ModalePietanzaAggregata({ voce, settoreDefault, categoriaDefault, onChi
                     </button>
                 </div>
             </div>
+        </div>
+    )
+}
+
+
+// ========================================
+// Gestione Scorte
+// ========================================
+function GestioneScorte({ scorte, onAggiornato }) {
+    const [pannelloScorte, setPannelloScorte] = useState(null)
+    const [caricamentoRifornimento, setCaricamentoRifornimento] = useState({})
+    const [quantitaRifornimento, setQuantitaRifornimento] = useState({})
+
+    const C = {
+        primary: '#005147', primaryContainer: '#006b5e',
+        surface: '#faf9fc', surfaceLow: '#f5f3f7', surfaceHigh: '#e9e7eb',
+        onSurface: '#1b1b1e', onSurfaceVariant: '#3e4946',
+    }
+
+    async function rifornisci(voceId, quantita) {
+        if (!quantita || quantita <= 0) return
+        setCaricamentoRifornimento(prev => ({ ...prev, [voceId]: true }))
+        try {
+            await fetch(`${API}/scorte/${voceId}/rifornimento`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quantita: parseInt(quantita) })
+            })
+            setQuantitaRifornimento(prev => ({ ...prev, [voceId]: '' }))
+            onAggiornato()
+        } catch (err) { console.error(err) }
+        finally { setCaricamentoRifornimento(prev => ({ ...prev, [voceId]: false })) }
+    }
+
+    return (
+        <div>
+            <div style={{ fontFamily: 'Public Sans, sans-serif', fontSize: '1.1rem', fontWeight: 800, color: C.primary, marginBottom: 16 }}>
+                Gestione Scorte
+            </div>
+            {scorte.length === 0 ? (
+                <div style={{ color: C.onSurfaceVariant, padding: 20 }}>Nessun articolo in scorta</div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="pietanze-tabella">
+                        <thead>
+                            <tr>
+                                <th>Articolo</th>
+                                <th>Quantità</th>
+                                <th>Soglia Giallo</th>
+                                <th>Soglia Rosso</th>
+                                <th style={{ background: '#fffbea', color: '#8B6914', fontWeight: 700 }}>Stato Giallo</th>
+                                <th style={{ background: '#ffedea', color: '#8B3E36', fontWeight: 700 }}>Stato Critico</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {scorte.map(item => (
+                                <tr key={item.voce_id}>
+                                    <td style={{ fontWeight: 600 }}>{item.nome}</td>
+                                    <td>
+                                        <span style={{
+                                            padding: '4px 8px', borderRadius: 6, background:
+                                            item.quantita === 0 ? '#f5f3f7' :
+                                            item.quantita <= item.soglia_rosso ? '#ffedea' :
+                                            item.quantita <= item.soglia_giallo ? '#fffbea' :
+                                            '#e7f6f5',
+                                            fontWeight: 600
+                                        }}>
+                                            {item.quantita}
+                                        </span>
+                                    </td>
+                                    <td>{item.soglia_giallo}</td>
+                                    <td>{item.soglia_rosso}</td>
+                                    <td style={{ textAlign: 'center', background: '#fffbea', color: item.quantita > item.soglia_giallo ? '#ccc' : '#F4A460', fontWeight: 700 }}>
+                                        {item.quantita <= item.soglia_giallo && item.quantita > item.soglia_rosso ? '⚠' : '—'}
+                                    </td>
+                                    <td style={{ textAlign: 'center', background: '#ffedea', color: item.quantita > item.soglia_rosso ? '#ccc' : '#DC143C', fontWeight: 700 }}>
+                                        {item.quantita <= item.soglia_rosso ? '🔴' : '—'}
+                                    </td>
+                                    <td>
+                                        <button
+                                            onClick={() => setPannelloScorte(pannelloScorte === item.voce_id ? null : item.voce_id)}
+                                            style={{ padding: '6px 12px', background: C.primary, color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                                        >
+                                            Rifornisci
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {pannelloScorte && (
+                <div style={{ marginTop: 32, padding: 20, background: C.surface, border: `1px solid ${C.surfaceHigh}`, borderRadius: 12 }}>
+                    {(() => {
+                        const item = scorte.find(s => s.voce_id === pannelloScorte)
+                        return item ? (
+                            <div>
+                                <div style={{ fontWeight: 600, marginBottom: 16, color: C.primary }}>{item.nome}</div>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label className="campo-label">Quantità da aggiungere</label>
+                                        <input
+                                            className="campo-input"
+                                            type="number"
+                                            min="1"
+                                            value={quantitaRifornimento[pannelloScorte] || ''}
+                                            onChange={e => setQuantitaRifornimento(prev => ({ ...prev, [pannelloScorte]: e.target.value }))}
+                                            placeholder="Inserisci quantità"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => rifornisci(pannelloScorte, quantitaRifornimento[pannelloScorte])}
+                                        disabled={caricamentoRifornimento[pannelloScorte]}
+                                        style={{ padding: '10px 20px', background: C.primary, color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+                                    >
+                                        {caricamentoRifornimento[pannelloScorte] ? 'Salvataggio...' : 'Salva'}
+                                    </button>
+                                    <button
+                                        onClick={() => setPannelloScorte(null)}
+                                        style={{ padding: '10px 20px', background: C.surfaceHigh, color: C.onSurface, border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+                                    >
+                                        Chiudi
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null
+                    })()}
+                </div>
+            )}
+        </div>
+    )
+}
+
+
+// ========================================
+// Cronologia Ordini
+// ========================================
+function CronologiaOrdini({ ordini }) {
+    const [expandedOrderId, setExpandedOrderId] = useState(null)
+
+    const C = {
+        primary: '#005147', primaryContainer: '#006b5e',
+        surface: '#faf9fc', surfaceLow: '#f5f3f7', surfaceHigh: '#e9e7eb',
+        onSurface: '#1b1b1e', onSurfaceVariant: '#3e4946',
+    }
+
+    function formatTime(isoString) {
+        const date = new Date(isoString)
+        return date.toLocaleString('it-IT')
+    }
+
+    function formatMoney(val) {
+        return parseFloat(val || 0).toFixed(2)
+    }
+
+    function calcolaTotaleLordo(righe) {
+        if (!righe) return 0
+        return righe.reduce((acc, r) => acc + (r.quantita * parseFloat(r.prezzo || 0)), 0)
+    }
+
+    return (
+        <div>
+            <div style={{ fontFamily: 'Public Sans, sans-serif', fontSize: '1.1rem', fontWeight: 800, color: C.primary, marginBottom: 16 }}>
+                Cronologia Ordini ({ordini.length})
+            </div>
+            {ordini.length === 0 ? (
+                <div style={{ color: C.onSurfaceVariant, padding: 20 }}>Nessun ordine registrato</div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {ordini.map(order => {
+                        const totaleLordo = calcolaTotaleLordo(order.righe)
+                        const scontoImporto = order.tipo_sconto === 'percentuale'
+                            ? totaleLordo * (parseFloat(order.sconto || 0) / 100)
+                            : parseFloat(order.sconto || 0)
+
+                        return (
+                            <div key={order.id} style={{ border: `1px solid ${C.surfaceHigh}`, borderRadius: 12, overflow: 'hidden', background: C.surface }}>
+                                <div
+                                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                                    style={{ padding: 16, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: expandedOrderId === order.id ? C.surfaceLow : C.surface, borderBottom: expandedOrderId === order.id ? `1px solid ${C.surfaceHigh}` : 'none' }}
+                                >
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, color: C.primary, marginBottom: 4 }}>
+                                            Ordine #{order.id}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: C.onSurfaceVariant }}>
+                                            {formatTime(order.timestamp)}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontWeight: 700, fontSize: 14, color: C.primary }}>
+                                                {formatMoney(order.totale)} €
+                                            </div>
+                                            <div style={{ fontSize: 11, color: C.onSurfaceVariant }}>
+                                                {order.righe ? order.righe.length : 0} articoli
+                                            </div>
+                                        </div>
+                                        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary }}>
+                                            {expandedOrderId === order.id ? '▼' : '▶'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {expandedOrderId === order.id && (
+                                    <div style={{ padding: 16, borderTop: `1px solid ${C.surfaceHigh}`, background: C.surfaceLow }}>
+                                        <div style={{ marginBottom: 12 }}>
+                                            <div style={{ fontSize: 12, color: C.onSurfaceVariant, marginBottom: 8 }}>Articoli:</div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {order.righe && order.righe.map((riga, idx) => (
+                                                    <div key={idx} style={{ padding: 8, background: C.surface, borderRadius: 6, fontSize: 13 }}>
+                                                        <div style={{ fontWeight: 600, color: C.onSurface }}>
+                                                            {riga.nome} × {riga.quantita}
+                                                        </div>
+                                                        {riga.prezzo && (
+                                                            <div style={{ fontSize: 11, color: C.onSurfaceVariant, marginTop: 4 }}>
+                                                                Prezzo: {formatMoney(riga.prezzo)} €
+                                                            </div>
+                                                        )}
+                                                        {riga.note && riga.note.length > 0 && (
+                                                            <div style={{ fontSize: 11, color: C.onSurfaceVariant, marginTop: 4 }}>
+                                                                {riga.note.map((nota, nIdx) => (
+                                                                    <div key={nIdx}>Note: {nota.testo}</div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ borderTop: `1px solid ${C.surfaceHigh}`, paddingTop: 12, marginTop: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                                                <span>Totale lordo:</span>
+                                                <span>{formatMoney(totaleLordo)} €</span>
+                                            </div>
+                                            {scontoImporto > 0 && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#D87D4C', marginBottom: 6 }}>
+                                                    <span>Sconto:</span>
+                                                    <span>-{formatMoney(scontoImporto)} €</span>
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, color: C.primary }}>
+                                                <span>Totale:</span>
+                                                <span>{formatMoney(order.totale)} €</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
         </div>
     )
 }

@@ -4,16 +4,53 @@ import { io } from 'socket.io-client'
 const API = '/api'
 const socket = io('/', { path: '/socket.io' })
 
-function coloreTasto(voce, scorteMap) {
-    const scorta = scorteMap[voce.id]
-    if (!scorta || !scorta.attiva) return voce.colore_tasto || '#4A90D9'
-    if (scorta.quantita === 0) return '#555'
-    if (scorta.stato_visivo === 'critico') return '#e74c3c'
-    if (scorta.stato_visivo === 'attenzione') return '#f39c12'
-    return voce.colore_tasto || '#4A90D9'
+const PALETTE = [
+    '#4A90D9', // Blu
+    '#5BA85E', // Verde
+    '#D45454', // Rosso
+    '#E8B84B', // Giallo
+    '#9370BE', // Viola
+    '#4A4E5A', // Nero
+]
+
+const C = {
+    primary: '#005147',
+    primaryContainer: '#006b5e',
+    surface: '#faf9fc',
+    surfaceLow: '#f5f3f7',
+    surfaceContainer: '#efedf1',
+    surfaceHigh: '#e9e7eb',
+    surfaceHighest: '#e3e2e6',
+    surfaceLowest: '#ffffff',
+    onSurface: '#1b1b1e',
+    onSurfaceVariant: '#3e4946',
+    secondary: '#425e91',
+    secondaryContainer: '#a8c4fd',
+    onSecondaryContainer: '#345082',
+    outline: '#bec9c5',
+    tertiary: '#930009',
+    primaryFixed: '#9ff2e1',
+    onPrimaryFixed: '#00201b',
 }
 
-const btnBase = { border: 'none', borderRadius: 4, cursor: 'pointer', color: '#fff' }
+function statusInfo(voce, scorteMap) {
+    const s = scorteMap[voce.id]
+    if (!s || !s.attiva) return { color: '#22c55e', label: 'Disponibile', disabled: false }
+    if (s.quantita === 0) return { color: '#a1a1aa', label: 'Esaurito', disabled: true }
+    if (s.stato_visivo === 'critico') return { color: '#ef4444', label: 'Critico', disabled: false }
+    if (s.stato_visivo === 'attenzione') return { color: '#eab308', label: 'Scorta bassa', disabled: false }
+    return { color: '#22c55e', label: 'Disponibile', disabled: false }
+}
+
+function getTextColorForBackground(hexColor) {
+    if (!hexColor) return C.onSurface
+    const hex = hexColor.replace('#', '')
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+    const luminosita = (r * 299 + g * 587 + b * 114) / 1000
+    return luminosita > 165 ? '#1b1b1e' : '#ffffff'
+}
 
 export default function Cassa() {
     const [voci, setVoci] = useState([])
@@ -22,64 +59,67 @@ export default function Cassa() {
     const [asporto, setAsporto] = useState(false)
     const [importoPagato, setImportoPagato] = useState('')
     const [caricamento, setCaricamento] = useState(true)
+    const [settoreFiltro, setSettoreFiltro] = useState(null)
+    const [rigaAperta, setRigaAperta] = useState(null)
 
-    // Scontistica
+    // Cronologia ordini
+    const [modaleCronologia, setModaleCronologia] = useState(false)
+    const [ordiniStorico, setOrdiniStorico] = useState([])
+    const [caricaCronologia, setCaricaCronologia] = useState(false)
+
     const [scontoValore, setScontoValore] = useState('')
     const [scontoTipo, setScontoTipo] = useState('percentuale')
     const [modaleScontistica, setModaleScontistica] = useState(false)
 
-    // Modifica riga (espansione inline)
-    const [rigaAperta, setRigaAperta] = useState(null) // voce_id
-
-    // Allergeni
     const [modaleAllergeni, setModaleAllergeni] = useState(false)
     const [allergeniDati, setAllergeniDati] = useState({})
     const [caricaAllergeni, setCaricaAllergeni] = useState(false)
 
-    // Stock limitato
     const [modaleStock, setModaleStock] = useState(false)
 
-    const ordineSettori = ['bar', 'primi', 'secondi', 'contorni', 'dolce', 'dolci']
-    const settori = [...new Set(voci.map(v => v.settore_visualizzazione))]
-        .filter(Boolean)
-        .sort((a, b) => {
-            const aNorm = String(a || '').trim().toLowerCase()
-            const bNorm = String(b || '').trim().toLowerCase()
-            const aIdx = ordineSettori.indexOf(aNorm)
-            const bIdx = ordineSettori.indexOf(bNorm)
-            const aPriority = aIdx === -1 ? Number.MAX_SAFE_INTEGER : aIdx
-            const bPriority = bIdx === -1 ? Number.MAX_SAFE_INTEGER : bIdx
-            if (aPriority !== bPriority) return aPriority - bPriority
-            return aNorm.localeCompare(bNorm, 'it')
-        })
+    // Popup notifica
+    const [popup, setPopup] = useState(null)
 
-    const totale = righe.reduce((acc, r) => acc + (r.prezzo * r.quantita), 0)
+    const mostraPopup = (messaggio, tipo = 'success') => {
+        setPopup({ messaggio, tipo })
+        setTimeout(() => setPopup(null), 3000)
+    }
+
+    const ordineSettori = ['bar', 'primi', 'secondi', 'contorni', 'dolce', 'dolci']
+
+    // Ordinamento 3 livelli: categoria → nome alfabetico
+    const ordinaVoci = (a, b) => {
+        const catA = String(a.categoria || '').toLowerCase()
+        const catB = String(b.categoria || '').toLowerCase()
+        if (catA !== catB) return catA.localeCompare(catB, 'it', { sensitivity: 'base' })
+        return String(a.nome).localeCompare(String(b.nome), 'it', { sensitivity: 'base' })
+    }
+
+    // Raggruppa voci per settore, poi per colore all'interno di ogni settore
+    const vociPerSettore = ordineSettori.reduce((acc, settore) => {
+        const vociSettore = voci.filter(v => String(v.settore_visualizzazione).toLowerCase() === String(settore).toLowerCase()).sort(ordinaVoci)
+        if (vociSettore.length > 0) {
+            acc[settore] = vociSettore
+        }
+        return acc
+    }, {})
+
+    const totale = righe.reduce((acc, r) => acc + r.prezzo * r.quantita, 0)
     const scontoNum = parseFloat(scontoValore) || 0
     const scontoImporto = scontoNum > 0
         ? (scontoTipo === 'percentuale' ? totale * (scontoNum / 100) : Math.min(scontoNum, totale))
         : 0
     const totaleNetto = totale - scontoImporto
     const resto = importoPagato ? (parseFloat(importoPagato) - totaleNetto).toFixed(2) : null
-    const colonneMenu = Math.min(Math.max(settori.length, 1), 6)
-
-    const ordinaVociSettore = (a, b) => {
-        const ordineA = Number(a.ordine_schermo ?? 0)
-        const ordineB = Number(b.ordine_schermo ?? 0)
-        if (ordineA !== ordineB) return ordineA - ordineB
-        return String(a.nome || '').localeCompare(String(b.nome || ''), 'it', { sensitivity: 'base' })
-    }
 
     const vociStockLimitato = voci
-        .filter(v => {
-            const s = scorteMap[v.id]
-            return s && s.attiva && (s.quantita === 0 || s.stato_visivo === 'critico' || s.stato_visivo === 'attenzione')
-        })
+        .filter(v => { const s = scorteMap[v.id]; return s?.attiva && (s.quantita === 0 || s.stato_visivo === 'critico' || s.stato_visivo === 'attenzione') })
         .map(v => ({ ...v, scorta: scorteMap[v.id] }))
 
     useEffect(() => {
         caricaMenu()
         caricaScorte()
-        socket.on('scorte_aggiornate', (nuoveScorte) => {
+        socket.on('scorte_aggiornate', nuoveScorte => {
             const mappa = {}
             nuoveScorte.forEach(s => { mappa[s.voce_id] = s })
             setScorteMap(mappa)
@@ -88,37 +128,40 @@ export default function Cassa() {
     }, [])
 
     async function caricaMenu() {
-        try {
-            const res = await fetch(`${API}/menu`)
-            setVoci(await res.json())
-        } catch (err) {
-            console.error('Errore caricamento menu', err)
-        } finally {
-            setCaricamento(false)
-        }
+        try { setVoci(await (await fetch(`${API}/menu`)).json()) }
+        catch (err) { console.error('Errore menu', err) }
+        finally { setCaricamento(false) }
     }
 
     async function caricaScorte() {
         try {
-            const res = await fetch(`${API}/scorte`)
-            const dati = await res.json()
+            const dati = await (await fetch(`${API}/scorte`)).json()
             const mappa = {}
             dati.forEach(s => { mappa[s.voce_id] = s })
             setScorteMap(mappa)
-        } catch (err) {
-            console.error('Errore caricamento scorte', err)
-        }
+        } catch (err) { console.error('Errore scorte', err) }
     }
 
     function aggiungiVoce(voce) {
-        const scorta = scorteMap[voce.id]
-        if (scorta && scorta.attiva && scorta.quantita === 0) return
+        const s = scorteMap[voce.id]
+        if (s?.attiva && s.quantita === 0) {
+            mostraPopup('✗ Prodotto esaurito', 'error')
+            return
+        }
+
+        // Verifica se la nuova quantità supera la scorta disponibile
+        const rigaEsistente = righe.find(r => r.voce_id === voce.id)
+        const nuovaQuantita = (rigaEsistente?.quantita || 0) + 1
+
+        if (s?.attiva && nuovaQuantita > s.quantita) {
+            mostraPopup(`✗ Scorta insufficiente (disponibile: ${s.quantita})`, 'error')
+            return
+        }
+
         setRighe(prev => {
-            const esistente = prev.find(r => r.voce_id === voce.id)
-            if (esistente) {
-                return prev.map(r => r.voce_id === voce.id ? { ...r, quantita: r.quantita + 1 } : r)
-            }
-            return [...prev, { voce_id: voce.id, nome: voce.nome, prezzo: parseFloat(voce.prezzo), quantita: 1, note: [] }]
+            const es = prev.find(r => r.voce_id === voce.id)
+            if (es) return prev.map(r => r.voce_id === voce.id ? { ...r, quantita: r.quantita + 1 } : r)
+            return [...prev, { voce_id: voce.id, nome: voce.nome, prezzo: parseFloat(voce.prezzo), quantita: 1, note: [], colore_tasto: voce.colore_tasto }]
         })
     }
 
@@ -128,249 +171,406 @@ export default function Cassa() {
     }
 
     function cambiaQuantita(voce_id, delta) {
-        setRighe(prev => prev.map(r =>
-            r.voce_id === voce_id ? { ...r, quantita: Math.max(1, r.quantita + delta) } : r
-        ))
+        setRighe(prev => {
+            return prev.map(r => {
+                if (r.voce_id !== voce_id) return r
+
+                const nuovaQuantita = r.quantita + delta
+                if (nuovaQuantita < 1) return { ...r, quantita: 1 }
+
+                // Verifica scorta disponibile se delta è positivo (aumento)
+                if (delta > 0) {
+                    const s = scorteMap[voce_id]
+                    if (s?.attiva && nuovaQuantita > s.quantita) {
+                        mostraPopup(`✗ Scorta insufficiente (disponibile: ${s.quantita})`, 'error')
+                        return r
+                    }
+                }
+
+                return { ...r, quantita: nuovaQuantita }
+            })
+        })
     }
 
     function salvaNote(voce_id, numero_porzione, testo) {
         setRighe(prev => prev.map(r => {
             if (r.voce_id !== voce_id) return r
             const altre = r.note.filter(n => n.numero_porzione !== numero_porzione)
-            const nuove = testo.trim() ? [...altre, { numero_porzione, testo: testo.trim(), costo_aggiuntivo: 0 }] : altre
-            return { ...r, note: nuove }
+            return { ...r, note: testo.trim() ? [...altre, { numero_porzione, testo: testo.trim(), costo_aggiuntivo: 0 }] : altre }
         }))
     }
 
     function azzeraOrdine() {
-        setRighe([])
-        setAsporto(false)
-        setImportoPagato('')
-        setScontoValore('')
-        setRigaAperta(null)
+        setRighe([]); setAsporto(false); setImportoPagato(''); setScontoValore(''); setRigaAperta(null)
     }
 
     async function apriAllergeni() {
-        setModaleAllergeni(true)
-        setCaricaAllergeni(true)
+        setModaleAllergeni(true); setCaricaAllergeni(true)
         try {
-            const risultati = {}
-            await Promise.all(righe.map(async r => {
-                const res = await fetch(`${API}/menu/${r.voce_id}/allergeni`)
-                risultati[r.voce_id] = await res.json()
-            }))
-            setAllergeniDati(risultati)
-        } catch (err) {
-            console.error('Errore allergeni', err)
-        } finally {
-            setCaricaAllergeni(false)
-        }
+            const res = {}
+            await Promise.all(righe.map(async r => { res[r.voce_id] = await (await fetch(`${API}/menu/${r.voce_id}/allergeni`)).json() }))
+            setAllergeniDati(res)
+        } catch (err) { console.error('Errore allergeni', err) }
+        finally { setCaricaAllergeni(false) }
+    }
+
+    async function apriCronologia() {
+        setModaleCronologia(true)
+        setCaricaCronologia(true)
+        try {
+            const dati = await (await fetch(`${API}/ordini`)).json()
+            setOrdiniStorico(dati)
+        } catch (err) { console.error('Errore cronologia', err) }
+        finally { setCaricaCronologia(false) }
     }
 
     async function confermaOrdine() {
         if (!righe.length) return
         try {
-            const resOrdine = await fetch(`${API}/ordini`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const { id } = await (await fetch(`${API}/ordini`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ righe })
-            })
-            const { id } = await resOrdine.json()
-
+            })).json()
             await fetch(`${API}/ordini/${id}/conferma`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    asporto,
-                    sconto: scontoNum || 0,
-                    tipo_sconto: scontoTipo,
-                    importo_pagato: importoPagato ? parseFloat(importoPagato) : null
-                })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ asporto, sconto: scontoNum || 0, tipo_sconto: scontoTipo, importo_pagato: importoPagato ? parseFloat(importoPagato) : null })
             })
-
             azzeraOrdine()
-            alert('Ordine confermato')
-        } catch (err) {
-            alert('Errore durante la conferma: ' + err.message)
-        }
+            mostraPopup('✓ Ordine confermato con successo', 'success')
+        } catch (err) { mostraPopup('✗ Errore: ' + err.message, 'error') }
     }
 
-    if (caricamento) return <div style={{ padding: 40, textAlign: 'center' }}>Caricamento menu...</div>
+    if (caricamento) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'Inter, sans-serif', color: C.primary, fontSize: 18, background: C.surface }}>
+            Caricamento menu...
+        </div>
+    )
 
-    const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }
-    const modaleStyle = { background: '#1a2744', borderRadius: 10, padding: 24, minWidth: 360, maxWidth: 480, maxHeight: '80vh', overflowY: 'auto', color: '#fff' }
+    const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }
+    const modaleStyle = { background: C.surface, borderRadius: 16, padding: 28, minWidth: 380, maxWidth: 500, maxHeight: '80vh', overflowY: 'auto', color: C.onSurface, boxShadow: '0 24px 64px rgba(0,0,0,0.14)' }
+
+    const btnFooter = (bg, color = C.onSurface, extra = {}) => ({
+        height: 52, padding: '0 18px', display: 'flex', alignItems: 'center', gap: 6,
+        background: bg, color, border: 'none', borderRadius: 10,
+        fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 12,
+        textTransform: 'uppercase', letterSpacing: '0.08em',
+        cursor: 'pointer', whiteSpace: 'nowrap', ...extra
+    })
 
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter, sans-serif', background: C.surface, color: C.onSurface, overflow: 'hidden' }}>
 
-            {/* ── Colonna sinistra: menu ── */}
-            <div style={{ flex: '0 0 66.666%', maxWidth: '66.666%', overflowY: 'auto', padding: '0 12px 12px 12px', background: '#16213e' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colonneMenu}, minmax(0, 1fr))`, gap: 12, alignItems: 'stretch', minHeight: 'calc(100vh - 12px)' }}>
-                    {settori.map(settore => {
-                        const vociSettore = voci.filter(v => v.settore_visualizzazione === settore).sort(ordinaVociSettore)
-                        const usaRiempimento = vociSettore.length > 0 && vociSettore.length <= 6
-                        return (
-                            <div key={settore} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                                <h3 style={{ color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase', margin: 0, letterSpacing: 1, position: 'sticky', top: 0, zIndex: 10, background: '#16213e', padding: '12px 8px 10px 8px', minHeight: 44, display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                    {settore}
-                                </h3>
-                                <div style={{
-                                    display: 'grid', gridTemplateColumns: '1fr',
-                                    gridTemplateRows: usaRiempimento ? `repeat(${vociSettore.length}, minmax(96px, 1fr))` : undefined,
-                                    gridAutoRows: usaRiempimento ? undefined : 'minmax(96px, auto)',
-                                    gap: 8, paddingTop: 8, flex: 1, minHeight: 0,
-                                    overflowY: usaRiempimento ? 'hidden' : 'auto'
-                                }}>
-                                    {vociSettore.map(voce => {
-                                        const esaurito = scorteMap[voce.id]?.attiva && scorteMap[voce.id]?.quantita === 0
-                                        return (
-                                            <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={esaurito}
-                                                style={{ ...btnBase, background: coloreTasto(voce, scorteMap), padding: '14px 8px', borderRadius: 8, fontSize: '0.9rem', textAlign: 'center', lineHeight: 1.3, opacity: esaurito ? 0.4 : 1, minHeight: 96, cursor: esaurito ? 'default' : 'pointer' }}>
-                                                {voce.nome}
-                                                <div style={{ fontSize: '0.8rem', marginTop: 4, opacity: 0.9 }}>{parseFloat(voce.prezzo).toFixed(2)} €</div>
+            {/* ── HEADER ── */}
+            <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 60, zIndex: 50, background: 'rgba(250,249,252,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.surfaceHigh}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 20, color: C.primary }}>FestivalPOS</span>
+                    <span style={{ width: 1, height: 18, background: C.outline }} />
+                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 14, color: C.primary, borderBottom: `2px solid ${C.primary}`, paddingBottom: 2 }}>Cassa</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {vociStockLimitato.length > 0 && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+                            ⚠ {vociStockLimitato.length} voci esaurite/critiche
+                        </span>
+                    )}
+                    <button onClick={apriCronologia}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: `1.5px solid ${C.outline}`, borderRadius: 8, background: 'transparent', color: C.onSurfaceVariant, fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
+                        🕓 Cronologia ordini
+                    </button>
+                </div>
+            </header>
+
+            {/* ── MAIN ── */}
+            <main style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingTop: 60, paddingBottom: 80 }}>
+
+                {/* Griglia prodotti */}
+                <section style={{ flex: 1, overflowY: 'auto', padding: '20px 20px', background: C.surfaceLow }}>
+
+                    {/* Colonne per settore */}
+                    <div style={{ display: 'flex', gap: 20, overflowX: 'auto', paddingRight: 20 }}>
+                        {(() => {
+                            // Altezza fissa uguale per tutti: divide l'area disponibile in 6 slot
+                            const altezzaDisponibile = window.innerHeight - 200
+                            const ALTEZZA_BTN = (altezzaDisponibile - 30 - 10 * 5) / 6 // 6 righe, 5 gap da 10px
+
+                            return Object.entries(vociPerSettore).map(([settore, vociSettore]) => {
+                            const numArticoli = vociSettore.length
+                            const hasSubcolumns = numArticoli > 6
+                            const articoliPerColonna = hasSubcolumns ? Math.ceil(numArticoli / 2) : numArticoli
+
+                            return (
+                            <div key={settore} style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: hasSubcolumns ? 400 : 190, flexShrink: 0 }}>
+                                {/* Intestazione colonna con titolo settore */}
+                                <div style={{ paddingBottom: 8, borderBottom: `3px solid ${C.primary}` }}>
+                                    <span style={{ fontSize: 14, fontWeight: 900, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Public Sans, sans-serif' }}>
+                                        {settore}
+                                    </span>
+                                </div>
+
+                                {/* Contenitore prodotti (1 o 2 colonne) */}
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    {/* Prima colonna */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                                        {vociSettore.slice(0, articoliPerColonna).map(voce => {
+                                            const { color, label, disabled } = statusInfo(voce, scorteMap)
+                                            const backgroundColor = voce.colore_tasto || C.surfaceLowest
+                                            const textColor = getTextColorForBackground(backgroundColor)
+                                            const isCustomColor = voce.colore_tasto && voce.colore_tasto !== C.surfaceLowest
+                                            return (
+                                                <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
+                                                    style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '14px 12px', height: ALTEZZA_BTN, flexShrink: 0, textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0 }}
+                                                onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
+                                                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                            >
+                                                <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 17, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.25, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{voce.nome}</h3>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                                        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: isCustomColor ? textColor : C.onSurfaceVariant, opacity: 0.85 }}>{label}</span>
+                                                    </div>
+                                                    <p style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 14, color: isCustomColor ? textColor : C.primary, margin: 0, opacity: isCustomColor ? 0.9 : 1 }}>€ {parseFloat(voce.prezzo).toFixed(2)}</p>
+                                                </div>
                                             </button>
-                                        )
-                                    })}
+                                            )
+                                        })}
+                                    </div>
+
+                                    {/* Seconda colonna (se > 6 articoli) */}
+                                    {hasSubcolumns && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                                            {vociSettore.slice(articoliPerColonna).map(voce => {
+                                                const { color, label, disabled } = statusInfo(voce, scorteMap)
+                                                const backgroundColor = voce.colore_tasto || C.surfaceLowest
+                                                const textColor = getTextColorForBackground(backgroundColor)
+                                                const isCustomColor = voce.colore_tasto && voce.colore_tasto !== C.surfaceLowest
+                                                return (
+                                                    <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
+                                                        style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '14px 12px', height: ALTEZZA_BTN, flexShrink: 0, textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0 }}
+                                                        onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
+                                                        onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                                    >
+                                                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 17, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.25, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{voce.nome}</h3>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                                                <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: isCustomColor ? textColor : C.onSurfaceVariant, opacity: 0.85 }}>{label}</span>
+                                                            </div>
+                                                            <p style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 14, color: isCustomColor ? textColor : C.primary, margin: 0, opacity: isCustomColor ? 0.9 : 1 }}>€ {parseFloat(voce.prezzo).toFixed(2)}</p>
+                                                        </div>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        )
-                    })}
-                </div>
-            </div>
+                            )
+                        })
+                        })()}
+                    </div>
+                </section>
 
-            {/* ── Colonna destra: riepilogo ── */}
-            <div style={{ flex: '1 1 33.334%', display: 'flex', flexDirection: 'column', background: '#0f3460', minWidth: 280 }}>
+                {/* Pannello ordine */}
+                <aside style={{ width: 390, background: C.surface, borderLeft: `1px solid ${C.surfaceHigh}`, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 32px rgba(0,0,0,0.04)' }}>
 
-                {/* Header */}
-                <div style={{ padding: '12px 16px', background: '#e94560', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{asporto ? 'ASPORTO' : 'ORDINE'}</span>
+                    {/* Intestazione ordine */}
+                    <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.surfaceHigh}`, background: `${C.surfaceLow}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <h2 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 19, color: C.primary, margin: 0 }}>
+                                {asporto ? '🥡 ASPORTO' : 'ORDINE'}
+                            </h2>
+                            <span style={{ padding: '3px 12px', background: C.primaryFixed, color: C.onPrimaryFixed, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', borderRadius: 20 }}>
+                                {righe.length > 0 ? 'In Corso' : 'Vuoto'}
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, color: C.onSurfaceVariant }}>
+                            {righe.length} {righe.length === 1 ? 'prodotto' : 'prodotti'} selezionati
+                        </p>
+                    </div>
+
+                    {/* Lista righe */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
+                        {righe.length === 0 && (
+                            <div style={{ textAlign: 'center', color: C.onSurfaceVariant, marginTop: 48, fontSize: 14 }}>
+                                <div style={{ fontSize: 36, marginBottom: 10 }}>🧾</div>
+                                Nessuna voce selezionata
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {[...righe].sort((a, b) => a.nome.localeCompare(b.nome, 'it')).map(riga => {
+                                const aperta = rigaAperta === riga.voce_id
+                                const backgroundColor = riga.colore_tasto || C.surfaceLowest
+                                const textColor = getTextColorForBackground(backgroundColor)
+                                const isCustomColor = riga.colore_tasto && riga.colore_tasto !== C.surfaceLowest
+                                return (
+                                    <div key={riga.voce_id} style={{ background: backgroundColor, borderRadius: 12, border: `1px solid ${aperta ? C.outline : 'transparent'}`, overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', gap: 10 }}>
+                                            {/* Nome */}
+                                            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setRigaAperta(aperta ? null : riga.voce_id)}>
+                                                <div style={{ fontWeight: 700, fontSize: 14, color: isCustomColor ? textColor : C.onSurface, lineHeight: 1.3 }}>{riga.nome}</div>
+                                                <div style={{ fontSize: 13, color: isCustomColor ? textColor : C.primaryContainer, fontWeight: 600, marginTop: 2 }}>€ {(riga.prezzo * riga.quantita).toFixed(2)}</div>
+                                                {riga.note.length > 0 && (
+                                                    <div style={{ fontSize: 11, color: isCustomColor ? textColor : C.onSurfaceVariant, marginTop: 2, opacity: isCustomColor ? 0.8 : 1 }}>📝 {riga.note.length} nota{riga.note.length > 1 ? 'e' : ''}</div>
+                                                )}
+                                            </div>
+                                            {/* +/- e rimuovi */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <button onClick={() => cambiaQuantita(riga.voce_id, -1)}
+                                                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: C.secondaryContainer, color: C.onSecondaryContainer, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
+                                                    −
+                                                </button>
+                                                <span style={{ fontWeight: 900, fontSize: 15, minWidth: 22, textAlign: 'center' }}>{riga.quantita}</span>
+                                                <button onClick={() => cambiaQuantita(riga.voce_id, +1)}
+                                                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: C.secondaryContainer, color: C.onSecondaryContainer, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
+                                                    +
+                                                </button>
+                                                <button onClick={() => rimuoviVoce(riga.voce_id)}
+                                                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#fde8e8', color: C.tertiary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {/* Note */}
+                                        {aperta && (
+                                            <div style={{ padding: '10px 14px 14px', borderTop: `1px solid ${C.surfaceHigh}` }}>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: C.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Note per porzione</div>
+                                                {Array.from({ length: riga.quantita }, (_, i) => i + 1).map(n => (
+                                                    <div key={n} style={{ marginBottom: 6 }}>
+                                                        <div style={{ fontSize: 11, color: C.onSurfaceVariant, marginBottom: 3 }}>Porzione {n}</div>
+                                                        <input type="text" placeholder="Es. senza cipolla"
+                                                            value={riga.note.find(no => no.numero_porzione === n)?.testo || ''}
+                                                            onChange={e => salvaNote(riga.voce_id, n, e.target.value)}
+                                                            style={{ width: '100%', padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.outline}`, background: C.surfaceLow, color: C.onSurface, fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Totale + pagamento */}
+                    <div style={{ padding: '18px 22px', borderTop: `1px solid ${C.surfaceHigh}`, background: 'rgba(250,249,252,0.9)', backdropFilter: 'blur(20px)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+                            <span>Subtotale</span><span>€ {totale.toFixed(2)}</span>
+                        </div>
+                        {scontoImporto > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: C.tertiary, fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+                                <span>Sconto ({scontoTipo === 'percentuale' ? `${scontoValore}%` : `€ ${parseFloat(scontoValore).toFixed(2)}`})</span>
+                                <span>−€ {scontoImporto.toFixed(2)}</span>
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8, marginBottom: 16 }}>
+                            <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 18, color: C.onSurface }}>TOTALE</span>
+                            <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 34, color: C.primary, lineHeight: 1 }}>€ {totaleNetto.toFixed(2)}</span>
+                        </div>
+                        <input type="number" placeholder="Cifra pagata" value={importoPagato} onChange={e => setImportoPagato(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${C.outline}`, background: C.surfaceLow, color: C.onSurface, fontSize: 15, fontWeight: 600, boxSizing: 'border-box', outline: 'none', marginBottom: 8 }} />
+                        {resto !== null && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, color: parseFloat(resto) >= 0 ? '#15803d' : C.tertiary }}>
+                                <span>Resto</span><span>€ {resto}</span>
+                            </div>
+                        )}
+                    </div>
+                </aside>
+            </main>
+
+            {/* ── FOOTER AZIONI ── */}
+            <footer style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 80, zIndex: 50, background: 'rgba(250,249,252,0.94)', backdropFilter: 'blur(20px)', borderTop: `1px solid ${C.surfaceHigh}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', boxShadow: '0 -8px 32px rgba(0,0,0,0.06)' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={azzeraOrdine} style={btnFooter(C.surfaceHigh)}>
+                        ✕ AZZERA
+                    </button>
+                    <button onClick={() => setModaleScontistica(true)}
+                        style={btnFooter(scontoImporto > 0 ? C.secondary : C.surfaceHigh, scontoImporto > 0 ? '#fff' : C.onSurface)}>
+                        🏷 {scontoImporto > 0 ? `SCONTO (${scontoTipo === 'percentuale' ? scontoValore + '%' : '€' + scontoValore})` : 'SCONTO'}
+                    </button>
                     <button onClick={() => setAsporto(a => !a)}
-                        style={{ ...btnBase, background: asporto ? '#fff' : 'rgba(255,255,255,0.2)', color: asporto ? '#e94560' : '#fff', padding: '4px 10px', fontSize: '0.8rem' }}>
-                        asporto
+                        style={btnFooter(asporto ? C.surfaceHighest : C.surfaceHigh, asporto ? C.primary : C.onSurface, { border: `2px solid ${asporto ? C.primary : 'transparent'}` })}>
+                        🥡 ASPORTO
+                    </button>
+                    <button onClick={righe.length ? apriAllergeni : undefined} disabled={!righe.length}
+                        style={btnFooter(C.surfaceHigh, C.onSurface, { opacity: righe.length ? 1 : 0.4, cursor: righe.length ? 'pointer' : 'default' })}>
+                        ℹ ALLERGENI
+                    </button>
+                    <button onClick={() => setModaleStock(true)}
+                        style={btnFooter(vociStockLimitato.length > 0 ? '#fef3c7' : C.surfaceHigh, vociStockLimitato.length > 0 ? '#92400e' : C.onSurface)}>
+                        📦 STOCK{vociStockLimitato.length > 0 ? ` (${vociStockLimitato.length})` : ''}
                     </button>
                 </div>
 
-                {/* Lista righe */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-                    {righe.length === 0 && (
-                        <div style={{ color: '#888', textAlign: 'center', marginTop: 40 }}>Nessuna voce selezionata</div>
-                    )}
-                    {righe.map(riga => {
-                        const aperta = rigaAperta === riga.voce_id
-                        return (
-                            <div key={riga.voce_id} style={{ marginBottom: 4, borderRadius: 6, overflow: 'hidden', border: `1px solid ${aperta ? 'rgba(255,255,255,0.2)' : 'transparent'}` }}>
-                                {/* Riga principale – cliccabile per espandere */}
-                                <div onClick={() => setRigaAperta(aperta ? null : riga.voce_id)}
-                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 4px', borderBottom: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', background: aperta ? 'rgba(255,255,255,0.05)' : 'transparent' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600 }}>{riga.nome}</div>
-                                        <div style={{ color: '#aaa', fontSize: '0.85rem' }}>x{riga.quantita} — {(riga.prezzo * riga.quantita).toFixed(2)} €</div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                        <span style={{ color: '#aaa', fontSize: '0.75rem' }}>{aperta ? '▲' : '▼'}</span>
-                                        <button onClick={e => { e.stopPropagation(); rimuoviVoce(riga.voce_id) }}
-                                            style={{ ...btnBase, background: 'rgba(255,0,0,0.3)', padding: '4px 8px', fontSize: '0.8rem' }}>
-                                            ✕
-                                        </button>
-                                    </div>
-                                </div>
+                <button onClick={confermaOrdine} disabled={!righe.length}
+                    style={{ height: 52, padding: '0 28px', display: 'flex', alignItems: 'center', gap: 10, background: righe.length ? `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})` : C.surfaceHigh, color: righe.length ? '#fff' : C.onSurfaceVariant, border: 'none', borderRadius: 10, fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: righe.length ? 'pointer' : 'default', boxShadow: righe.length ? '0 4px 20px rgba(0,81,71,0.25)' : 'none', transition: 'all 0.15s' }}>
+                    CONFERMA ORDINE ✓
+                </button>
+            </footer>
 
-                                {/* Pannello modifica quantità/note */}
-                                {aperta && (
-                                    <div style={{ padding: '10px 8px', background: 'rgba(0,0,0,0.2)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                            <span style={{ fontSize: '0.85rem', color: '#aaa' }}>Quantità:</span>
-                                            <button onClick={() => cambiaQuantita(riga.voce_id, -1)}
-                                                style={{ ...btnBase, background: '#e94560', width: 28, height: 28, fontSize: '1rem' }}>−</button>
-                                            <span style={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{riga.quantita}</span>
-                                            <button onClick={() => cambiaQuantita(riga.voce_id, +1)}
-                                                style={{ ...btnBase, background: '#2ecc71', width: 28, height: 28, fontSize: '1rem' }}>+</button>
-                                        </div>
-                                        {Array.from({ length: riga.quantita }, (_, i) => i + 1).map(n => (
-                                            <div key={n} style={{ marginBottom: 6 }}>
-                                                <div style={{ fontSize: '0.78rem', color: '#aaa', marginBottom: 2 }}>Porzione {n}:</div>
-                                                <input type="text" placeholder="Note (es. senza cipolla)"
-                                                    value={riga.note.find(no => no.numero_porzione === n)?.testo || ''}
-                                                    onChange={e => salvaNote(riga.voce_id, n, e.target.value)}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                                                />
+            {/* ── MODALE CRONOLOGIA ORDINI ── */}
+            {modaleCronologia && (
+                <div style={overlayStyle} onClick={() => setModaleCronologia(false)}>
+                    <div style={{ ...modaleStyle, minWidth: 520, maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>
+                            Cronologia ordini — oggi
+                        </h3>
+                        {caricaCronologia ? (
+                            <div style={{ textAlign: 'center', padding: 28, color: C.onSurfaceVariant }}>Caricamento...</div>
+                        ) : ordiniStorico.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 28, color: C.onSurfaceVariant }}>Nessun ordine oggi</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {ordiniStorico.map(o => {
+                                    const ora = new Date(o.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+                                    const statoColor = o.stato === 'confermato' ? C.primary : C.onSurfaceVariant
+                                    const statoBg = o.stato === 'confermato' ? 'rgba(0,81,71,0.08)' : C.surfaceLow
+                                    return (
+                                        <div key={o.id} style={{ background: C.surfaceLow, borderRadius: 12, padding: '14px 16px', border: `1px solid ${C.surfaceHigh}` }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 15, color: C.onSurface }}>
+                                                        #{o.id}
+                                                    </span>
+                                                    <span style={{ fontSize: 12, color: C.onSurfaceVariant }}>{ora}</span>
+                                                    {o.asporto === 1 && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>ASPORTO</span>}
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{ fontSize: 11, background: statoBg, color: statoColor, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{o.stato}</span>
+                                                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 17, color: C.primary }}>€ {parseFloat(o.totale || 0).toFixed(2)}</span>
+                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                {(o.righe || []).map((r, i) => (
+                                                    <span key={i} style={{ background: C.surface, border: `1px solid ${C.surfaceHigh}`, padding: '3px 10px', borderRadius: 20, fontSize: 12, color: C.onSurface }}>
+                                                        {r.quantita}× {r.nome}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
-                        )
-                    })}
-                </div>
-
-                {/* Footer: totale + pagamento + bottoni */}
-                <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)' }}>
-                    {/* Totale (con o senza sconto) */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: scontoImporto > 0 ? '1rem' : '1.3rem', fontWeight: 700, marginBottom: scontoImporto > 0 ? 2 : 12, color: scontoImporto > 0 ? '#aaa' : '#fff' }}>
-                        <span>Totale</span>
-                        <span style={{ textDecoration: scontoImporto > 0 ? 'line-through' : 'none' }}>{totale.toFixed(2)} €</span>
-                    </div>
-                    {scontoImporto > 0 && (
-                        <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#f39c12', marginBottom: 2 }}>
-                                <span>Sconto ({scontoTipo === 'percentuale' ? `${scontoValore}%` : `${parseFloat(scontoValore).toFixed(2)} €`})</span>
-                                <span>−{scontoImporto.toFixed(2)} €</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.3rem', fontWeight: 700, marginBottom: 12 }}>
-                                <span>Netto</span>
-                                <span>{totaleNetto.toFixed(2)} €</span>
-                            </div>
-                        </>
-                    )}
-
-                    <input type="number" placeholder="Cifra pagata" value={importoPagato} onChange={e => setImportoPagato(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', marginBottom: 8, boxSizing: 'border-box' }} />
-
-                    {resto !== null && (
-                        <div style={{ textAlign: 'right', color: parseFloat(resto) >= 0 ? '#2ecc71' : '#e74c3c', fontWeight: 700, marginBottom: 12 }}>
-                            Resto: {resto} €
-                        </div>
-                    )}
-
-                    {/* Bottoni secondari */}
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                        <button onClick={() => setModaleScontistica(true)}
-                            style={{ ...btnBase, flex: 1, background: scontoImporto > 0 ? '#f39c12' : 'rgba(255,255,255,0.12)', padding: '8px 4px', fontSize: '0.78rem' }}>
-                            {scontoImporto > 0 ? `Sconto (${scontoTipo === 'percentuale' ? scontoValore + '%' : scontoValore + '€'})` : 'Scontistica'}
-                        </button>
-                        <button onClick={righe.length ? apriAllergeni : undefined} disabled={!righe.length}
-                            style={{ ...btnBase, flex: 1, background: 'rgba(255,255,255,0.12)', padding: '8px 4px', fontSize: '0.78rem', opacity: righe.length ? 1 : 0.4, cursor: righe.length ? 'pointer' : 'default' }}>
-                            Allergeni
-                        </button>
-                        <button onClick={() => setModaleStock(true)}
-                            style={{ ...btnBase, flex: 1, background: vociStockLimitato.length > 0 ? 'rgba(231,76,60,0.5)' : 'rgba(255,255,255,0.12)', padding: '8px 4px', fontSize: '0.78rem' }}>
-                            Q. limitate{vociStockLimitato.length > 0 ? ` (${vociStockLimitato.length})` : ''}
-                        </button>
-                    </div>
-
-                    {/* Bottoni principali */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={azzeraOrdine}
-                            style={{ ...btnBase, flex: 1, background: '#555', padding: 12 }}>
-                            Azzera
-                        </button>
-                        <button onClick={confermaOrdine} disabled={!righe.length}
-                            style={{ ...btnBase, flex: 2, background: '#2ecc71', padding: 12, opacity: righe.length ? 1 : 0.5, cursor: righe.length ? 'pointer' : 'default' }}>
-                            Conferma ordine
+                        )}
+                        <button onClick={() => setModaleCronologia(false)}
+                            style={{ marginTop: 18, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
+                            Chiudi
                         </button>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* ── MODALE SCONTISTICA ── */}
             {modaleScontistica && (
                 <div style={overlayStyle} onClick={() => setModaleScontistica(false)}>
                     <div style={modaleStyle} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 16px' }}>Scontistica</h3>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>Scontistica</h3>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                             {['percentuale', 'fisso'].map(tipo => (
                                 <button key={tipo} onClick={() => setScontoTipo(tipo)}
-                                    style={{ ...btnBase, flex: 1, padding: 10, background: scontoTipo === tipo ? '#e94560' : 'rgba(255,255,255,0.1)', fontSize: '0.9rem' }}>
+                                    style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14, background: scontoTipo === tipo ? C.primary : C.surfaceHigh, color: scontoTipo === tipo ? '#fff' : C.onSurface }}>
                                     {tipo === 'percentuale' ? 'Percentuale (%)' : 'Importo fisso (€)'}
                                 </button>
                             ))}
@@ -378,19 +578,19 @@ export default function Cassa() {
                         <input type="number" min="0" autoFocus
                             placeholder={scontoTipo === 'percentuale' ? 'Es. 10 (= 10%)' : 'Es. 5 (= 5 €)'}
                             value={scontoValore} onChange={e => setScontoValore(e.target.value)}
-                            style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', marginBottom: 12, boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.outline}`, background: C.surfaceLow, color: C.onSurface, fontSize: 15, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }} />
                         {scontoNum > 0 && (
-                            <div style={{ color: '#f39c12', marginBottom: 12, fontSize: '0.9rem' }}>
-                                Sconto: −{scontoImporto.toFixed(2)} € → Netto: {totaleNetto.toFixed(2)} €
+                            <div style={{ padding: '10px 14px', background: '#fef3c7', borderRadius: 8, fontSize: 14, color: '#92400e', fontWeight: 600, marginBottom: 16 }}>
+                                Sconto: −€ {scontoImporto.toFixed(2)} → Netto: € {totaleNetto.toFixed(2)}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={() => { setScontoValore(''); setModaleScontistica(false) }}
-                                style={{ ...btnBase, flex: 1, padding: 10, background: '#555' }}>
+                                style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
                                 Rimuovi sconto
                             </button>
                             <button onClick={() => setModaleScontistica(false)}
-                                style={{ ...btnBase, flex: 1, padding: 10, background: '#2ecc71' }}>
+                                style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.primary, color: '#fff' }}>
                                 Applica
                             </button>
                         </div>
@@ -402,21 +602,19 @@ export default function Cassa() {
             {modaleAllergeni && (
                 <div style={overlayStyle} onClick={() => setModaleAllergeni(false)}>
                     <div style={modaleStyle} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 16px' }}>Allergeni — ordine corrente</h3>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>Allergeni — ordine corrente</h3>
                         {caricaAllergeni
-                            ? <div style={{ color: '#aaa', textAlign: 'center', padding: 20 }}>Caricamento...</div>
+                            ? <div style={{ textAlign: 'center', padding: 24, color: C.onSurfaceVariant }}>Caricamento...</div>
                             : righe.map(riga => {
                                 const all = allergeniDati[riga.voce_id] || []
                                 return (
-                                    <div key={riga.voce_id} style={{ marginBottom: 14 }}>
-                                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{riga.nome}</div>
+                                    <div key={riga.voce_id} style={{ marginBottom: 14, padding: '12px 14px', background: C.surfaceLow, borderRadius: 10 }}>
+                                        <div style={{ fontWeight: 700, marginBottom: 8, color: C.onSurface }}>{riga.nome}</div>
                                         {all.length === 0
-                                            ? <div style={{ color: '#aaa', fontSize: '0.85rem' }}>Nessun allergene registrato</div>
-                                            : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                            ? <span style={{ fontSize: 13, color: C.onSurfaceVariant }}>Nessun allergene registrato</span>
+                                            : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                                 {all.map((a, i) => (
-                                                    <span key={i} style={{ background: '#e94560', padding: '2px 10px', borderRadius: 12, fontSize: '0.8rem' }}>
-                                                        {a.nome ?? a}
-                                                    </span>
+                                                    <span key={i} style={{ background: '#fde8e8', color: C.tertiary, padding: '3px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{a.nome ?? a}</span>
                                                 ))}
                                             </div>
                                         }
@@ -425,37 +623,39 @@ export default function Cassa() {
                             })
                         }
                         <button onClick={() => setModaleAllergeni(false)}
-                            style={{ ...btnBase, marginTop: 8, width: '100%', padding: 10, background: '#555' }}>
+                            style={{ marginTop: 8, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
                             Chiudi
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* ── MODALE QUANTITÀ LIMITATE ── */}
+            {/* ── MODALE STOCK ── */}
             {modaleStock && (
                 <div style={overlayStyle} onClick={() => setModaleStock(false)}>
                     <div style={modaleStyle} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 16px' }}>Quantità limitate / esaurite</h3>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>Quantità limitate / esaurite</h3>
                         {vociStockLimitato.length === 0
-                            ? <div style={{ color: '#aaa', textAlign: 'center', padding: 20 }}>Nessuna voce con stock limitato</div>
-                            : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            ? <div style={{ textAlign: 'center', padding: 24, color: C.onSurfaceVariant }}>Nessuna voce con stock limitato</div>
+                            : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                                 <thead>
-                                    <tr style={{ color: '#aaa', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <th style={{ textAlign: 'left', padding: '4px 8px' }}>Voce</th>
-                                        <th style={{ textAlign: 'center', padding: '4px 8px' }}>Qtà</th>
-                                        <th style={{ textAlign: 'center', padding: '4px 8px' }}>Stato</th>
+                                    <tr style={{ color: C.onSurfaceVariant, borderBottom: `1px solid ${C.outline}` }}>
+                                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Voce</th>
+                                        <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Qtà</th>
+                                        <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Stato</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {vociStockLimitato.map(v => {
                                         const stato = v.scorta.quantita === 0 ? 'Esaurito' : v.scorta.stato_visivo === 'critico' ? 'Critico' : 'Attenzione'
-                                        const colore = v.scorta.quantita === 0 ? '#888' : v.scorta.stato_visivo === 'critico' ? '#e74c3c' : '#f39c12'
+                                        const col = v.scorta.quantita === 0 ? '#a1a1aa' : v.scorta.stato_visivo === 'critico' ? '#ef4444' : '#eab308'
                                         return (
-                                            <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <td style={{ padding: '6px 8px' }}>{v.nome}</td>
-                                                <td style={{ textAlign: 'center', padding: '6px 8px' }}>{v.scorta.quantita}</td>
-                                                <td style={{ textAlign: 'center', padding: '6px 8px', color: colore, fontWeight: 600 }}>{stato}</td>
+                                            <tr key={v.id} style={{ borderBottom: `1px solid ${C.surfaceHigh}` }}>
+                                                <td style={{ padding: '10px 8px', color: C.onSurface, fontWeight: 600 }}>{v.nome}</td>
+                                                <td style={{ textAlign: 'center', padding: '10px 8px', color: C.onSurface }}>{v.scorta.quantita}</td>
+                                                <td style={{ textAlign: 'center', padding: '10px 8px' }}>
+                                                    <span style={{ background: `${col}22`, color: col, padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{stato}</span>
+                                                </td>
                                             </tr>
                                         )
                                     })}
@@ -463,12 +663,49 @@ export default function Cassa() {
                             </table>
                         }
                         <button onClick={() => setModaleStock(false)}
-                            style={{ ...btnBase, marginTop: 16, width: '100%', padding: 10, background: '#555' }}>
+                            style={{ marginTop: 16, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
                             Chiudi
                         </button>
                     </div>
                 </div>
             )}
+
+            {/* Popup Notifica */}
+            {popup && (
+                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 300 }}>
+                    <div style={{
+                        background: popup.tipo === 'success' ? '#10b981' : '#ef4444',
+                        color: 'white',
+                        padding: '16px 24px',
+                        borderRadius: 12,
+                        boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        animation: 'slideIn 0.3s ease-out'
+                    }}>
+                        <span style={{ fontSize: 18 }}>
+                            {popup.tipo === 'success' ? '✓' : '✗'}
+                        </span>
+                        {popup.messaggio}
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(400px);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+            `}</style>
         </div>
     )
 }
