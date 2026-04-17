@@ -610,7 +610,7 @@ export default function Cassa() {
                         <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 18, margin: '0 0 16px', color: C.primary, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Inserisci Importo
                         </h3>
-                        
+
                         <div style={{ background: C.surfaceLowest, border: `2px solid ${C.outline}`, borderRadius: 12, padding: '16px', fontSize: 28, fontWeight: 900, color: C.onSurface, textAlign: 'right', marginBottom: 20, minHeight: 64, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontFamily: 'monospace', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.04)' }}>
                             {importoTemp ? `€ ${importoTemp}` : '0.00'}
                         </div>
