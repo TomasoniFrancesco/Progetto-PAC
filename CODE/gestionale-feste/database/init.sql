@@ -151,7 +151,7 @@ INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, sett
 ('P003', 'Lasagne al forno', 8.50, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
 ('P004', 'Pasta al pomodoro', 7.00, 'Primo', 'Primi', 'cucina', '#E8A838',1),
 ('P005', 'Gnocchi al ragu', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
-('P006', 'Penne all arrabbiata', 7.50, 'Primo', 'Primi', 'cucina', '#E8A838', 1),
+('P006', 'Penne all''arrabbiata', 7.50, 'Primo', 'Primi', 'cucina', '#E8A838', 1),
 
 ('S001', 'Costine alla griglia', 12.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),
 ('S002', 'Salsiccia alla piastra', 9.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),

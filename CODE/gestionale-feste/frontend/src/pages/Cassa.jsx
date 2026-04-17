@@ -35,11 +35,11 @@ const C = {
 
 function statusInfo(voce, scorteMap) {
     const s = scorteMap[voce.id]
-    if (!s || !s.attiva) return { color: '#22c55e', label: 'Disponibile', disabled: false }
-    if (s.quantita === 0) return { color: '#a1a1aa', label: 'Esaurito', disabled: true }
-    if (s.stato_visivo === 'critico') return { color: '#ef4444', label: 'Critico', disabled: false }
-    if (s.stato_visivo === 'attenzione') return { color: '#eab308', label: 'Scorta bassa', disabled: false }
-    return { color: '#22c55e', label: 'Disponibile', disabled: false }
+    if (!s || !s.attiva) return { color: '#22c55e', label: '∞', disabled: false }
+    if (s.quantita === 0) return { color: '#a1a1aa', label: '0', disabled: true }
+    if (s.stato_visivo === 'critico') return { color: '#ef4444', label: String(s.quantita), disabled: false }
+    if (s.stato_visivo === 'attenzione') return { color: '#eab308', label: String(s.quantita), disabled: false }
+    return { color: '#22c55e', label: String(s.quantita), disabled: false }
 }
 
 function getTextColorForBackground(hexColor) {
@@ -75,7 +75,9 @@ export default function Cassa() {
     const [allergeniDati, setAllergeniDati] = useState({})
     const [caricaAllergeni, setCaricaAllergeni] = useState(false)
 
-    const [modaleStock, setModaleStock] = useState(false)
+    // Tastierino
+    const [modaleTastierino, setModaleTastierino] = useState(false)
+    const [importoTemp, setImportoTemp] = useState('')
 
     // Popup notifica
     const [popup, setPopup] = useState(null)
@@ -83,6 +85,15 @@ export default function Cassa() {
     const mostraPopup = (messaggio, tipo = 'success') => {
         setPopup({ messaggio, tipo })
         setTimeout(() => setPopup(null), 3000)
+    }
+
+    const gestisciTastierino = (val) => {
+        if (val === 'DEL') setImportoTemp(prev => prev.slice(0, -1))
+        else if (val === ',') {
+            if (!importoTemp.includes('.')) setImportoTemp(prev => prev + '.')
+        } else {
+            setImportoTemp(prev => prev + val)
+        }
     }
 
     const ordineSettori = ['bar', 'primi', 'secondi', 'contorni', 'dolce', 'dolci']
@@ -249,145 +260,101 @@ export default function Cassa() {
     const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }
     const modaleStyle = { background: C.surface, borderRadius: 16, padding: 28, minWidth: 380, maxWidth: 500, maxHeight: '80vh', overflowY: 'auto', color: C.onSurface, boxShadow: '0 24px 64px rgba(0,0,0,0.14)' }
 
-    const btnFooter = (bg, color = C.onSurface, extra = {}) => ({
-        height: 52, padding: '0 18px', display: 'flex', alignItems: 'center', gap: 6,
-        background: bg, color, border: 'none', borderRadius: 10,
-        fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 12,
-        textTransform: 'uppercase', letterSpacing: '0.08em',
-        cursor: 'pointer', whiteSpace: 'nowrap', ...extra
-    })
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter, sans-serif', background: C.surface, color: C.onSurface, overflow: 'hidden' }}>
 
-            {/* ── HEADER ── */}
-            <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 60, zIndex: 50, background: 'rgba(250,249,252,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.surfaceHigh}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 20, color: C.primary }}>FestivalPOS</span>
-                    <span style={{ width: 1, height: 18, background: C.outline }} />
-                    <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 14, color: C.primary, borderBottom: `2px solid ${C.primary}`, paddingBottom: 2 }}>Cassa</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {vociStockLimitato.length > 0 && (
-                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-                            ⚠ {vociStockLimitato.length} voci esaurite/critiche
-                        </span>
-                    )}
-                    <button onClick={apriCronologia}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: `1.5px solid ${C.outline}`, borderRadius: 8, background: 'transparent', color: C.onSurfaceVariant, fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
-                        🕓 Cronologia ordini
-                    </button>
-                </div>
-            </header>
-
             {/* ── MAIN ── */}
-            <main style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingTop: 60, paddingBottom: 80 }}>
+            <main style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
                 {/* Griglia prodotti */}
-                <section style={{ flex: 1, overflowY: 'auto', padding: '20px 20px', background: C.surfaceLow }}>
+                <section style={{ flex: '0 0 74%', maxWidth: '74%', overflow: 'hidden', padding: '20px 20px', background: C.surfaceLow }}>
 
-                    {/* Colonne per settore */}
-                    <div style={{ display: 'flex', gap: 20, overflowX: 'auto', paddingRight: 20 }}>
+                    {/* Colonne per settore (spazio distribuito proporzionalmente alle subcolonne) */}
+                    <div style={{ display: 'flex', gap: 14, height: '100%', overflow: 'hidden' }}>
                         {(() => {
-                            // Altezza fissa uguale per tutti: divide l'area disponibile in 6 slot
-                            const altezzaDisponibile = window.innerHeight - 200
-                            const ALTEZZA_BTN = (altezzaDisponibile - 30 - 10 * 5) / 6 // 6 righe, 5 gap da 10px
-
                             return Object.entries(vociPerSettore).map(([settore, vociSettore]) => {
-                            const numArticoli = vociSettore.length
-                            const hasSubcolumns = numArticoli > 6
-                            const articoliPerColonna = hasSubcolumns ? Math.ceil(numArticoli / 2) : numArticoli
+                                const numArticoli = vociSettore.length || 1
+                                const maxRighe = 6
+                                const numColonne = Math.ceil(numArticoli / maxRighe)
+                                const righeEffettive = Math.ceil(numArticoli / numColonne)
+                                const haSubcolonne = numColonne > 1
 
-                            return (
-                            <div key={settore} style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: hasSubcolumns ? 400 : 190, flexShrink: 0 }}>
-                                {/* Intestazione colonna con titolo settore */}
-                                <div style={{ paddingBottom: 8, borderBottom: `3px solid ${C.primary}` }}>
-                                    <span style={{ fontSize: 14, fontWeight: 900, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Public Sans, sans-serif' }}>
-                                        {settore}
-                                    </span>
-                                </div>
+                                return (
+                                    <div key={settore} style={{ flex: numColonne, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, minHeight: 0 }}>
+                                        {/* Intestazione colonna con titolo settore */}
+                                        <div style={{ paddingBottom: 8, borderBottom: `3px solid ${C.primary}` }}>
+                                            <span style={{ fontSize: 14, fontWeight: 900, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Public Sans, sans-serif' }}>
+                                                {settore}
+                                            </span>
+                                        </div>
 
-                                {/* Contenitore prodotti (1 o 2 colonne) */}
-                                <div style={{ display: 'flex', gap: 12 }}>
-                                    {/* Prima colonna */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                                        {vociSettore.slice(0, articoliPerColonna).map(voce => {
-                                            const { color, label, disabled } = statusInfo(voce, scorteMap)
-                                            const backgroundColor = voce.colore_tasto || C.surfaceLowest
-                                            const textColor = getTextColorForBackground(backgroundColor)
-                                            const isCustomColor = voce.colore_tasto && voce.colore_tasto !== C.surfaceLowest
-                                            return (
-                                                <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
-                                                    style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '14px 12px', height: ALTEZZA_BTN, flexShrink: 0, textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0 }}
-                                                onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
-                                                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
-                                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
-                                            >
-                                                <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 17, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.25, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{voce.nome}</h3>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                                                        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: isCustomColor ? textColor : C.onSurfaceVariant, opacity: 0.85 }}>{label}</span>
-                                                    </div>
-                                                    <p style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 14, color: isCustomColor ? textColor : C.primary, margin: 0, opacity: isCustomColor ? 0.9 : 1 }}>€ {parseFloat(voce.prezzo).toFixed(2)}</p>
-                                                </div>
-                                            </button>
-                                            )
-                                        })}
-                                    </div>
-
-                                    {/* Seconda colonna (se > 6 articoli) */}
-                                    {hasSubcolumns && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                                            {vociSettore.slice(articoliPerColonna).map(voce => {
-                                                const { color, label, disabled } = statusInfo(voce, scorteMap)
-                                                const backgroundColor = voce.colore_tasto || C.surfaceLowest
-                                                const textColor = getTextColorForBackground(backgroundColor)
-                                                const isCustomColor = voce.colore_tasto && voce.colore_tasto !== C.surfaceLowest
+                                        {/* Contenitore prodotti settore dinamico bilanciato (senza buchi) */}
+                                        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 8 }}>
+                                            {Array.from({ length: numColonne }, (_, i) => {
+                                                const colonnaItems = vociSettore.slice(i * righeEffettive, (i + 1) * righeEffettive)
                                                 return (
-                                                    <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
-                                                        style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '14px 12px', height: ALTEZZA_BTN, flexShrink: 0, textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0 }}
-                                                        onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
-                                                        onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
-                                                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
-                                                    >
-                                                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 17, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.25, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{voce.nome}</h3>
-                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                                                                <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: isCustomColor ? textColor : C.onSurfaceVariant, opacity: 0.85 }}>{label}</span>
-                                                            </div>
-                                                            <p style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 14, color: isCustomColor ? textColor : C.primary, margin: 0, opacity: isCustomColor ? 0.9 : 1 }}>€ {parseFloat(voce.prezzo).toFixed(2)}</p>
-                                                        </div>
-                                                    </button>
+                                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
+                                                        {colonnaItems.map(voce => {
+                                                            const { color, label, disabled } = statusInfo(voce, scorteMap)
+                                                            const backgroundColor = voce.colore_tasto || C.surfaceLowest
+                                                            const textColor = getTextColorForBackground(backgroundColor)
+                                                            const isCustomColor = voce.colore_tasto && voce.colore_tasto !== C.surfaceLowest
+                                                            const nomeLungo = (voce.nome || '').length > 18
+
+                                                            const fontSizeNome = nomeLungo ? 'clamp(11.5px, 1.1vw, 15px)' : 'clamp(13px, 1.3vw, 18px)'
+                                                            const fontSizePrezzo = 'clamp(13px, 1.2vw, 16px)'
+
+                                                            return (
+                                                                <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
+                                                                    style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '8px 8px 7px', textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0, overflow: 'hidden', flex: 1 }}
+                                                                    onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
+                                                                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
+                                                                >
+                                                                    <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: fontSizeNome, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.15, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflowWrap: 'anywhere', wordBreak: 'break-word', padding: '0 2px' }}>{voce.nome}</h3>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                                                            <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, color: isCustomColor ? textColor : C.onSurfaceVariant, opacity: 0.9 }}>{label}</span>
+                                                                        </div>
+                                                                        <p style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: fontSizePrezzo, color: isCustomColor ? textColor : C.primary, margin: 0, opacity: isCustomColor ? 0.9 : 1, whiteSpace: 'nowrap' }}>€ {parseFloat(voce.prezzo).toFixed(2)}</p>
+                                                                    </div>
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
                                                 )
                                             })}
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                            )
-                        })
+                                    </div>
+                                )
+                            })
                         })()}
                     </div>
                 </section>
 
                 {/* Pannello ordine */}
-                <aside style={{ width: 390, background: C.surface, borderLeft: `1px solid ${C.surfaceHigh}`, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 32px rgba(0,0,0,0.04)' }}>
+                <aside style={{ width: '26%', minWidth: 350, background: C.surface, borderLeft: `1px solid ${C.surfaceHigh}`, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 32px rgba(0,0,0,0.04)', zIndex: 10 }}>
 
                     {/* Intestazione ordine */}
-                    <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.surfaceHigh}`, background: `${C.surfaceLow}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <h2 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 19, color: C.primary, margin: 0 }}>
-                                {asporto ? '🥡 ASPORTO' : 'ORDINE'}
+                    <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.surfaceHigh}`, background: `${C.surfaceLow}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <h2 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 20, color: C.primary, margin: 0 }}>
+                                {asporto ? '🥡 ASPORTO' : '📝 ORDINE'}
                             </h2>
-                            <span style={{ padding: '3px 12px', background: C.primaryFixed, color: C.onPrimaryFixed, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', borderRadius: 20 }}>
+                            <button onClick={apriCronologia}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', border: `1px solid ${C.outline}`, borderRadius: 8, background: C.surfaceHighest, color: C.onSurfaceVariant, fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>
+                                🕓 Cronologia
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p style={{ margin: 0, fontSize: 13, color: C.onSurfaceVariant, fontWeight: 600 }}>
+                                {righe.length} {righe.length === 1 ? 'prodotto' : 'prodotti'}
+                            </p>
+                            <span style={{ padding: '4px 10px', background: righe.length > 0 ? C.primaryFixed : C.surfaceHigh, color: righe.length > 0 ? C.onPrimaryFixed : C.onSurfaceVariant, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', borderRadius: 20 }}>
                                 {righe.length > 0 ? 'In Corso' : 'Vuoto'}
                             </span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 12, color: C.onSurfaceVariant }}>
-                            {righe.length} {righe.length === 1 ? 'prodotto' : 'prodotti'} selezionati
-                        </p>
                     </div>
 
                     {/* Lista righe */}
@@ -454,61 +421,67 @@ export default function Cassa() {
                         </div>
                     </div>
 
-                    {/* Totale + pagamento */}
-                    <div style={{ padding: '18px 22px', borderTop: `1px solid ${C.surfaceHigh}`, background: 'rgba(250,249,252,0.9)', backdropFilter: 'blur(20px)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                            <span>Subtotale</span><span>€ {totale.toFixed(2)}</span>
+                    {/* Azioni e Pagamento */}
+                    <div style={{ padding: '16px 20px', borderTop: `1px solid ${C.surfaceHigh}`, background: C.surfaceLow, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                        {/* Riga Bottoni Secondari */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <button onClick={azzeraOrdine} style={{ padding: '12px 6px', background: C.surfaceHigh, color: C.onSurface, border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 11, cursor: 'pointer', fontFamily: 'Public Sans, sans-serif', textTransform: 'uppercase' }}>
+                                ✕ Azzera
+                            </button>
+                            <button onClick={() => setModaleScontistica(true)}
+                                style={{ padding: '12px 6px', background: scontoImporto > 0 ? C.secondary : C.surfaceHigh, color: scontoImporto > 0 ? '#fff' : C.onSurface, border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 11, cursor: 'pointer', fontFamily: 'Public Sans, sans-serif', textTransform: 'uppercase' }}>
+                                🏷 Sconto {scontoImporto > 0 ? (scontoTipo === 'percentuale' ? `(${scontoValore}%)` : `(€${scontoValore})`) : ''}
+                            </button>
+                            <button onClick={() => setAsporto(a => !a)}
+                                style={{ padding: '10px 6px', background: asporto ? C.surfaceHighest : C.surfaceHigh, color: asporto ? C.primary : C.onSurface, border: `2px solid ${asporto ? C.primary : 'transparent'}`, borderRadius: 10, fontWeight: 800, fontSize: 11, cursor: 'pointer', fontFamily: 'Public Sans, sans-serif', textTransform: 'uppercase', boxSizing: 'border-box' }}>
+                                🥡 Asporto
+                            </button>
+                            <button onClick={righe.length ? apriAllergeni : undefined} disabled={!righe.length}
+                                style={{ padding: '12px 6px', background: C.surfaceHigh, color: C.onSurface, border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 11, cursor: righe.length ? 'pointer' : 'default', opacity: righe.length ? 1 : 0.4, fontFamily: 'Public Sans, sans-serif', textTransform: 'uppercase' }}>
+                                ℹ Allergeni
+                            </button>
                         </div>
-                        {scontoImporto > 0 && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', color: C.tertiary, fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                                <span>Sconto ({scontoTipo === 'percentuale' ? `${scontoValore}%` : `€ ${parseFloat(scontoValore).toFixed(2)}`})</span>
-                                <span>−€ {scontoImporto.toFixed(2)}</span>
+
+                        {/* Riepilogo Costi */}
+                        <div style={{ background: C.surface, padding: '14px 16px', borderRadius: 12, border: `1px solid ${C.surfaceHigh}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: C.onSurfaceVariant, fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+                                <span>Subtotale</span><span>€ {totale.toFixed(2)}</span>
                             </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8, marginBottom: 16 }}>
-                            <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 700, fontSize: 18, color: C.onSurface }}>TOTALE</span>
-                            <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 34, color: C.primary, lineHeight: 1 }}>€ {totaleNetto.toFixed(2)}</span>
+                            {scontoImporto > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', color: C.tertiary, fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+                                    <span>Sconto</span><span>−€ {scontoImporto.toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 6, marginTop: 4, borderTop: `1px dashed ${C.surfaceHigh}` }}>
+                                <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 16, color: C.onSurface }}>TOTALE</span>
+                                <span style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 26, color: C.primary, lineHeight: 1 }}>€ {totaleNetto.toFixed(2)}</span>
+                            </div>
                         </div>
-                        <input type="number" placeholder="Cifra pagata" value={importoPagato} onChange={e => setImportoPagato(e.target.value)}
-                            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${C.outline}`, background: C.surfaceLow, color: C.onSurface, fontSize: 15, fontWeight: 600, boxSizing: 'border-box', outline: 'none', marginBottom: 8 }} />
-                        {resto !== null && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, color: parseFloat(resto) >= 0 ? '#15803d' : C.tertiary }}>
-                                <span>Resto</span><span>€ {resto}</span>
+
+                        {/* Pagamento e Conferma */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div onClick={() => { setImportoTemp(importoPagato); setModaleTastierino(true); }}
+                                    style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.outline}`, background: C.surfaceLowest, color: importoPagato ? C.onSurface : '#aaa', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                                    <span>{importoPagato ? `€ ${importoPagato}` : 'Importo pagato (€)'}</span>
+                                    <span style={{ fontSize: 18, opacity: 0.7 }}>⌨️</span>
+                                </div>
+                                {resto !== null && (
+                                    <div style={{ background: parseFloat(resto) >= 0 ? '#dcfce7' : '#fee2e2', color: parseFloat(resto) >= 0 ? '#166534' : '#991b1b', padding: '12px 14px', borderRadius: 10, fontWeight: 800, fontSize: 15, minWidth: 90, textAlign: 'center', border: `1px solid ${parseFloat(resto) >= 0 ? '#bbf7d0' : '#fecaca'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        R: € {resto}
+                                    </div>
+                                )}
                             </div>
-                        )}
+
+                            <button onClick={confermaOrdine} disabled={!righe.length}
+                                style={{ width: '100%', padding: '16px', background: righe.length ? `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})` : C.surfaceHigh, color: righe.length ? '#fff' : C.onSurfaceVariant, border: 'none', borderRadius: 10, fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 16, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: righe.length ? 'pointer' : 'default', boxShadow: righe.length ? '0 4px 16px rgba(0,81,71,0.2)' : 'none', transition: 'all 0.15s' }}>
+                                CONFERMA ORDINE ✓
+                            </button>
+                        </div>
                     </div>
                 </aside>
             </main>
-
-            {/* ── FOOTER AZIONI ── */}
-            <footer style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 80, zIndex: 50, background: 'rgba(250,249,252,0.94)', backdropFilter: 'blur(20px)', borderTop: `1px solid ${C.surfaceHigh}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', boxShadow: '0 -8px 32px rgba(0,0,0,0.06)' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={azzeraOrdine} style={btnFooter(C.surfaceHigh)}>
-                        ✕ AZZERA
-                    </button>
-                    <button onClick={() => setModaleScontistica(true)}
-                        style={btnFooter(scontoImporto > 0 ? C.secondary : C.surfaceHigh, scontoImporto > 0 ? '#fff' : C.onSurface)}>
-                        🏷 {scontoImporto > 0 ? `SCONTO (${scontoTipo === 'percentuale' ? scontoValore + '%' : '€' + scontoValore})` : 'SCONTO'}
-                    </button>
-                    <button onClick={() => setAsporto(a => !a)}
-                        style={btnFooter(asporto ? C.surfaceHighest : C.surfaceHigh, asporto ? C.primary : C.onSurface, { border: `2px solid ${asporto ? C.primary : 'transparent'}` })}>
-                        🥡 ASPORTO
-                    </button>
-                    <button onClick={righe.length ? apriAllergeni : undefined} disabled={!righe.length}
-                        style={btnFooter(C.surfaceHigh, C.onSurface, { opacity: righe.length ? 1 : 0.4, cursor: righe.length ? 'pointer' : 'default' })}>
-                        ℹ ALLERGENI
-                    </button>
-                    <button onClick={() => setModaleStock(true)}
-                        style={btnFooter(vociStockLimitato.length > 0 ? '#fef3c7' : C.surfaceHigh, vociStockLimitato.length > 0 ? '#92400e' : C.onSurface)}>
-                        📦 STOCK{vociStockLimitato.length > 0 ? ` (${vociStockLimitato.length})` : ''}
-                    </button>
-                </div>
-
-                <button onClick={confermaOrdine} disabled={!righe.length}
-                    style={{ height: 52, padding: '0 28px', display: 'flex', alignItems: 'center', gap: 10, background: righe.length ? `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})` : C.surfaceHigh, color: righe.length ? '#fff' : C.onSurfaceVariant, border: 'none', borderRadius: 10, fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: righe.length ? 'pointer' : 'default', boxShadow: righe.length ? '0 4px 20px rgba(0,81,71,0.25)' : 'none', transition: 'all 0.15s' }}>
-                    CONFERMA ORDINE ✓
-                </button>
-            </footer>
 
             {/* ── MODALE CRONOLOGIA ORDINI ── */}
             {modaleCronologia && (
@@ -630,42 +603,44 @@ export default function Cassa() {
                 </div>
             )}
 
-            {/* ── MODALE STOCK ── */}
-            {modaleStock && (
-                <div style={overlayStyle} onClick={() => setModaleStock(false)}>
-                    <div style={modaleStyle} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>Quantità limitate / esaurite</h3>
-                        {vociStockLimitato.length === 0
-                            ? <div style={{ textAlign: 'center', padding: 24, color: C.onSurfaceVariant }}>Nessuna voce con stock limitato</div>
-                            : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                                <thead>
-                                    <tr style={{ color: C.onSurfaceVariant, borderBottom: `1px solid ${C.outline}` }}>
-                                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Voce</th>
-                                        <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Qtà</th>
-                                        <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Stato</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {vociStockLimitato.map(v => {
-                                        const stato = v.scorta.quantita === 0 ? 'Esaurito' : v.scorta.stato_visivo === 'critico' ? 'Critico' : 'Attenzione'
-                                        const col = v.scorta.quantita === 0 ? '#a1a1aa' : v.scorta.stato_visivo === 'critico' ? '#ef4444' : '#eab308'
-                                        return (
-                                            <tr key={v.id} style={{ borderBottom: `1px solid ${C.surfaceHigh}` }}>
-                                                <td style={{ padding: '10px 8px', color: C.onSurface, fontWeight: 600 }}>{v.nome}</td>
-                                                <td style={{ textAlign: 'center', padding: '10px 8px', color: C.onSurface }}>{v.scorta.quantita}</td>
-                                                <td style={{ textAlign: 'center', padding: '10px 8px' }}>
-                                                    <span style={{ background: `${col}22`, color: col, padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{stato}</span>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        }
-                        <button onClick={() => setModaleStock(false)}
-                            style={{ marginTop: 16, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
-                            Chiudi
-                        </button>
+            {/* ── MODALE TASTIERINO NUMERICO ── */}
+            {modaleTastierino && (
+                <div style={overlayStyle} onClick={() => setModaleTastierino(false)}>
+                    <div style={{ ...modaleStyle, minWidth: 320, maxWidth: 360, padding: 24 }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 18, margin: '0 0 16px', color: C.primary, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Inserisci Importo
+                        </h3>
+                        
+                        <div style={{ background: C.surfaceLowest, border: `2px solid ${C.outline}`, borderRadius: 12, padding: '16px', fontSize: 28, fontWeight: 900, color: C.onSurface, textAlign: 'right', marginBottom: 20, minHeight: 64, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontFamily: 'monospace', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.04)' }}>
+                            {importoTemp ? `€ ${importoTemp}` : '0.00'}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+                            {['7', '8', '9', '4', '5', '6', '1', '2', '3', ',', '0', 'DEL'].map(tasto => (
+                                <button key={tasto} onClick={() => gestisciTastierino(tasto)}
+                                    style={{ background: tasto === 'DEL' ? '#fee2e2' : C.surfaceHigh, color: tasto === 'DEL' ? '#991b1b' : C.onSurface, border: 'none', borderRadius: 12, padding: '18px 0', fontSize: 22, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.1s, background 0.1s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+                                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.92)'; e.currentTarget.style.background = tasto === 'DEL' ? '#fca5a5' : C.surfaceHighest; }}
+                                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = tasto === 'DEL' ? '#fee2e2' : C.surfaceHigh; }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = tasto === 'DEL' ? '#fee2e2' : C.surfaceHigh; }}
+                                >
+                                    {tasto === 'DEL' ? '⌫' : tasto}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={() => setImportoTemp('')}
+                                style={{ flex: 1, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 800, fontSize: 16, background: C.surfaceHigh, color: C.onSurface, transition: 'background 0.1s' }}
+                                onMouseDown={e => e.currentTarget.style.background = C.surfaceHighest}
+                                onMouseUp={e => e.currentTarget.style.background = C.surfaceHigh}
+                                onMouseLeave={e => e.currentTarget.style.background = C.surfaceHigh}>
+                                AZZERA
+                            </button>
+                            <button onClick={() => { setImportoPagato(importoTemp); setModaleTastierino(false) }}
+                                style={{ flex: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})`, color: '#fff', boxShadow: '0 4px 12px rgba(0,81,71,0.2)' }}>
+                                CONFERMA ✓
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
