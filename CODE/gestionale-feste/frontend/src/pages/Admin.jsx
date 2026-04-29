@@ -15,9 +15,9 @@ const PALETTE = [
 
 const COLORE_SETTORE = {
     'bar':      '#4A90D9',
-    'primi':    '#5BA85E',
+    'primi':    '#E8B84B',
     'secondi':  '#D45454',
-    'contorni': '#E8B84B',
+    'contorni': '#5BA85E',
     'dolci':    '#9370BE',
     'dolce':    '#9370BE',
 }
@@ -27,7 +27,7 @@ function coloreDefaultPerSettore(settore) {
 }
 
 // Ordine fisso delle categorie per la modale aggregata
-const ORDINE_SETTORI = ['Primi', 'Secondi', 'Contorni', 'Dolci', 'Bar']
+const ORDINE_SETTORI = ['bar', 'primi', 'secondi', 'contorni', 'dolci', 'dolce']
 
 // ========================================
 // Icone SVG inline
@@ -282,10 +282,21 @@ function VistaSettori({ onSeleziona }) {
 
     if (caricamento) return <div style={{ color: '#888' }}>Caricamento settori...</div>
 
+    const settoriOrdinati = [...settori].sort((a, b) => {
+        const aKey = String(a.settore_visualizzazione || '').toLowerCase()
+        const bKey = String(b.settore_visualizzazione || '').toLowerCase()
+        const idxA = ORDINE_SETTORI.indexOf(aKey)
+        const idxB = ORDINE_SETTORI.indexOf(bKey)
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+        return aKey.localeCompare(bKey, 'it')
+    })
+
     return (
         <>
             <div className="settori-grid">
-                {settori.map(s => (
+                {settoriOrdinati.map(s => (
                     <div key={s.settore_visualizzazione} className="settore-card"
                         style={{ '--settore-colore': s.colore || '#4A90D9' }}
                         onClick={() => onSeleziona(s.settore_visualizzazione)}>
@@ -1020,8 +1031,8 @@ function ModalePietanzaAggregata({ voce, settoreDefault, categoriaDefault, onChi
 
     // Ordina le chiavi dei settori secondo ORDINE_SETTORI, poi il resto in ordine alfabetico
     const settoriOrdinati = Object.keys(perSettore).sort((a, b) => {
-        const idxA = ORDINE_SETTORI.indexOf(a)
-        const idxB = ORDINE_SETTORI.indexOf(b)
+        const idxA = ORDINE_SETTORI.indexOf(String(a).toLowerCase())
+        const idxB = ORDINE_SETTORI.indexOf(String(b).toLowerCase())
         if (idxA !== -1 && idxB !== -1) return idxA - idxB
         if (idxA !== -1) return -1
         if (idxB !== -1) return 1
