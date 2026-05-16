@@ -8,6 +8,8 @@ const ordiniRouter = require('./routes/ordini');
 const menuRouter = require('./routes/menu');
 const scorteRouter = require('./routes/scorte');
 const stampantiRouter = require('./routes/stampanti');
+const smistatoreRouter = require('./routes/smistatore');
+const smistatore = require('./services/smistatore');
 
 const app = express();
 const server = http.createServer(app);
@@ -31,6 +33,7 @@ app.use('/api/ordini', ordiniRouter);
 app.use('/api/menu', menuRouter);
 app.use('/api/scorte', scorteRouter);
 app.use('/api/stampanti', stampantiRouter);
+app.use('/api/smistatore', smistatoreRouter);
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
@@ -127,6 +130,31 @@ async function avviaServer() {
                 console.log('Migrazione palette: colori normalizzati');
             } catch (errMigrazione) {
                 console.log('Migrazione palette:', errMigrazione.message);
+            }
+
+            // Migrazione: aggiunge colonna tempo_preparazione su voce (per lo smistatore)
+            try {
+                const [cols] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce' AND COLUMN_NAME = 'tempo_preparazione'`
+                );
+                if (cols.length === 0) {
+                    await db.query(`ALTER TABLE voce ADD COLUMN tempo_preparazione INT NOT NULL DEFAULT 60`);
+                    console.log('Migrazione voce: colonna tempo_preparazione aggiunta');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione tempo_preparazione:', errMigrazione.message);
+            }
+
+            // Inizializzazione smistatore: carica stato stampanti dal DB
+            try {
+                const [stampanti] = await db.query('SELECT reparto, stato FROM stampante');
+                for (const s of stampanti) {
+                    smistatore.setStatoStampante(s.reparto, s.stato === 'offline' ? 'offline' : 'online');
+                }
+                console.log(`Smistatore: caricate ${stampanti.length} stampanti`);
+            } catch (errInit) {
+                console.log('Init smistatore:', errInit.message);
             }
 
             // Migrazione: inizializza scorte a 10 per tutti i prodotti
