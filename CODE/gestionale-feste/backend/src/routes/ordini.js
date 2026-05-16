@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const smistatore = require('../services/smistatore');
+const dispatcher = require('../services/printer-dispatcher');
 
 // GET /api/ordini - lista ordini del giorno con righe e note
 router.get('/', async (req, res) => {
@@ -199,9 +200,13 @@ router.post('/:id/conferma', async (req, res) => {
             asporto: !!asporto,
         });
 
-        // Emette comande verso i client (es. dashboard di reparto) ordinate per priorità P
+        // Emette comande verso i client (dashboard reparto) e le invia in stampa.
+        // dispatcher.inviaComanda è fire-and-forget: non blocca la risposta al client.
         for (const comanda of comande) {
             io.emit('comanda_nuova', comanda);
+            dispatcher.inviaComanda(comanda).catch(err =>
+                console.error(`Stampa comanda ordine ${comanda.ordine_id}/${comanda.reparto} fallita:`, err.message)
+            );
         }
         if (bloccati.length) io.emit('task_bloccati', bloccati);
 
