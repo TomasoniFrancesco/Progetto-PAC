@@ -100,9 +100,30 @@ CREATE TABLE nota_preimpostata (
 CREATE TABLE stampante (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reparto VARCHAR(50) NOT NULL,
+    nome VARCHAR(50),
     indirizzo_ip VARCHAR(50) NOT NULL,
     porta INT NOT NULL DEFAULT 9100,
+    modello VARCHAR(20) NOT NULL DEFAULT 'EPSON',
+    primaria TINYINT(1) NOT NULL DEFAULT 1,
+    attiva TINYINT(1) NOT NULL DEFAULT 1,
     stato VARCHAR(20) DEFAULT 'sconosciuto'
+);
+
+-- Audit log delle stampe eseguite
+CREATE TABLE stampa_eseguita (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ordine_id INT NOT NULL,
+    stampante_id INT,
+    reparto VARCHAR(50) NOT NULL,
+    payload JSON,
+    esito ENUM('ok', 'errore', 'offline_rerouted', 'no_stampante') NOT NULL,
+    errore TEXT,
+    durata_ms INT,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ordine_id) REFERENCES ordine(id) ON DELETE CASCADE,
+    FOREIGN KEY (stampante_id) REFERENCES stampante(id) ON DELETE SET NULL,
+    INDEX idx_ordine (ordine_id),
+    INDEX idx_timestamp (timestamp)
 );
 
 -- Ordini
@@ -181,7 +202,9 @@ INSERT INTO allergene (nome, descr) VALUES
 ('Lattosio', 'Latte e derivati'),
 ('Frutta a guscio', 'Noci, mandorle, nocciole');
 
-INSERT INTO stampante (reparto, indirizzo_ip, porta) VALUES
-('cucina', '192.168.1.101', 9100),
-('bar', '192.168.1.102', 9100),
-('griglia', '192.168.1.103', 9100);
+-- Stampanti: configurate per emulatore TCP locale (modalità demo).
+-- Per produzione con hardware reale, aggiornare indirizzo_ip/porta.
+INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello) VALUES
+('cucina', 'Stampante Cucina', '127.0.0.1', 9100, 'EPSON'),
+('bar', 'Stampante Bar', '127.0.0.1', 9101, 'EPSON'),
+('griglia', 'Stampante Griglia', '127.0.0.1', 9102, 'EPSON');
