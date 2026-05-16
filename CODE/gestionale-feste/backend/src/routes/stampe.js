@@ -3,6 +3,7 @@ const router = express.Router()
 const db = require('../db')
 const dispatcher = require('../services/printer-dispatcher')
 const emulatore = require('../services/escpos-emulator')
+const smistatore = require('../services/smistatore')
 
 // GET /api/stampe?ordine_id=N  → storico stampe di un ordine
 router.get('/', async (req, res) => {
@@ -83,6 +84,12 @@ router.post('/emulatore/:stampante_id/spegni', async (req, res) => {
         const id = parseInt(req.params.stampante_id)
         await emulatore.spegniStampante(id)
         await db.query("UPDATE stampante SET stato='offline' WHERE id=?", [id])
+        // Notifica subito lo smistatore così i prossimi ordini vengono routati al fallback
+        const [r] = await db.query('SELECT reparto FROM stampante WHERE id=?', [id])
+        if (r[0]) {
+            smistatore.setStatoStampante(r[0].reparto, 'offline')
+            req.app.locals.io?.emit('stampante_offline', { reparto: r[0].reparto, stampante_id: id })
+        }
         res.json({ ok: true, stampante_id: id, stato: 'offline' })
     } catch (err) {
         res.status(500).json({ errore: err.message })
@@ -95,6 +102,11 @@ router.post('/emulatore/:stampante_id/accendi', async (req, res) => {
         const id = parseInt(req.params.stampante_id)
         const ok = await emulatore.accendiStampante(id, db)
         await db.query("UPDATE stampante SET stato='online' WHERE id=?", [id])
+        const [r] = await db.query('SELECT reparto FROM stampante WHERE id=?', [id])
+        if (r[0]) {
+            smistatore.setStatoStampante(r[0].reparto, 'online')
+            req.app.locals.io?.emit('stampante_online', { reparto: r[0].reparto, stampante_id: id })
+        }
         res.json({ ok, stampante_id: id, stato: 'online' })
     } catch (err) {
         res.status(500).json({ errore: err.message })
