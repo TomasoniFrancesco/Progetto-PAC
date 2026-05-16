@@ -146,6 +146,72 @@ async function avviaServer() {
                 console.log('Migrazione tempo_preparazione:', errMigrazione.message);
             }
 
+            // Migrazione: nuove colonne su stampante (modello, nome, primaria, attiva)
+            try {
+                const colonneRichieste = [
+                    { nome: 'nome', ddl: 'ADD COLUMN nome VARCHAR(50)' },
+                    { nome: 'modello', ddl: "ADD COLUMN modello VARCHAR(20) NOT NULL DEFAULT 'EPSON'" },
+                    { nome: 'primaria', ddl: 'ADD COLUMN primaria TINYINT(1) NOT NULL DEFAULT 1' },
+                    { nome: 'attiva', ddl: 'ADD COLUMN attiva TINYINT(1) NOT NULL DEFAULT 1' },
+                ];
+                const [cols] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stampante'`
+                );
+                const presenti = new Set(cols.map(c => c.COLUMN_NAME));
+                for (const col of colonneRichieste) {
+                    if (!presenti.has(col.nome)) {
+                        await db.query(`ALTER TABLE stampante ${col.ddl}`);
+                        console.log(`Migrazione stampante: colonna ${col.nome} aggiunta`);
+                    }
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione stampante:', errMigrazione.message);
+            }
+
+            // Migrazione: riporta le stampanti su 127.0.0.1 (emulatore locale) se sono
+            // ancora puntate ai placeholder 192.168.1.x del dataset di esempio originale.
+            try {
+                const mapping = [
+                    { reparto: 'cucina', porta: 9100, nome: 'Stampante Cucina' },
+                    { reparto: 'bar', porta: 9101, nome: 'Stampante Bar' },
+                    { reparto: 'griglia', porta: 9102, nome: 'Stampante Griglia' },
+                ];
+                for (const m of mapping) {
+                    await db.query(
+                        `UPDATE stampante
+                         SET indirizzo_ip = '127.0.0.1', porta = ?, nome = COALESCE(nome, ?)
+                         WHERE reparto = ? AND indirizzo_ip LIKE '192.168.%'`,
+                        [m.porta, m.nome, m.reparto]
+                    );
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione IP stampanti:', errMigrazione.message);
+            }
+
+            // Migrazione: crea tabella stampa_eseguita (audit log delle stampe)
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS stampa_eseguita (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        ordine_id INT NOT NULL,
+                        stampante_id INT,
+                        reparto VARCHAR(50) NOT NULL,
+                        payload JSON,
+                        esito ENUM('ok', 'errore', 'offline_rerouted', 'no_stampante') NOT NULL,
+                        errore TEXT,
+                        durata_ms INT,
+                        timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (ordine_id) REFERENCES ordine(id) ON DELETE CASCADE,
+                        FOREIGN KEY (stampante_id) REFERENCES stampante(id) ON DELETE SET NULL,
+                        INDEX idx_ordine (ordine_id),
+                        INDEX idx_timestamp (timestamp)
+                    )
+                `);
+            } catch (errMigrazione) {
+                console.log('Migrazione stampa_eseguita:', errMigrazione.message);
+            }
+
             // Inizializzazione smistatore: carica stato stampanti dal DB
             try {
                 const [stampanti] = await db.query('SELECT reparto, stato FROM stampante');
