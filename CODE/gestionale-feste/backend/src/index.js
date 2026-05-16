@@ -9,7 +9,10 @@ const menuRouter = require('./routes/menu');
 const scorteRouter = require('./routes/scorte');
 const stampantiRouter = require('./routes/stampanti');
 const smistatoreRouter = require('./routes/smistatore');
+const stampeRouter = require('./routes/stampe');
 const smistatore = require('./services/smistatore');
+const dispatcher = require('./services/printer-dispatcher');
+const emulatore = require('./services/escpos-emulator');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +37,11 @@ app.use('/api/menu', menuRouter);
 app.use('/api/scorte', scorteRouter);
 app.use('/api/stampanti', stampantiRouter);
 app.use('/api/smistatore', smistatoreRouter);
+app.use('/api/stampe', stampeRouter);
+
+// Inietta socket.io nei servizi che emettono eventi WebSocket
+dispatcher.setIo(io);
+emulatore.setIo(io);
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
@@ -221,6 +229,19 @@ async function avviaServer() {
                 console.log(`Smistatore: caricate ${stampanti.length} stampanti`);
             } catch (errInit) {
                 console.log('Init smistatore:', errInit.message);
+            }
+
+            // Avvio emulatori TCP ESC/POS (modalità demo: stampanti su 127.0.0.1)
+            // Disabilitabile con EMULATORE_ATTIVO=0 in produzione con hardware reale.
+            if (process.env.EMULATORE_ATTIVO !== '0') {
+                try {
+                    const n = await emulatore.avviaEmulatori(db);
+                    console.log(`Emulatore ESC/POS: ${n} stampanti virtuali in ascolto`);
+                } catch (errEmu) {
+                    console.log('Avvio emulatori:', errEmu.message);
+                }
+            } else {
+                console.log('Emulatore ESC/POS: disabilitato (EMULATORE_ATTIVO=0)');
             }
 
             // Migrazione: inizializza scorte a 10 per tutti i prodotti
