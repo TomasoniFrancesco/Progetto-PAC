@@ -68,20 +68,21 @@ function piede(printer) {
     printer.drawLine()
     printer.alignCenter()
     printer.println('** FINE COMANDA **')
-    printer.newLine()
     printer.cut()
 }
 
 // Costruisce un buffer ESC/POS per la comanda data.
 // L'oggetto opzioni può specificare: modello, larghezza_caratteri (default 32).
 async function formattaComanda(comanda, opzioni = {}) {
+    // interface fittizia: la libreria la richiede per istanziare, ma noi usiamo
+    // solo getBuffer() — l'I/O reale lo gestisce il dispatcher via net.Socket().
     const printer = new ThermalPrinter({
         type: risolviTipo(opzioni.modello),
+        interface: 'tcp://127.0.0.1:1',
         characterSet: 'PC858_EURO',
         removeSpecialCharacters: false,
         lineCharacter: '-',
         width: opzioni.larghezza_caratteri || 32,
-        // Non specifichiamo interface: vogliamo solo il buffer, l'I/O lo fa il dispatcher
     })
 
     intestazione(printer, comanda)

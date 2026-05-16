@@ -247,12 +247,19 @@ function avviaServerStampante(stampante) {
 }
 
 function pubblicaScontrino(stampante, scontrino) {
+    // Rimuovi righe vuote in coda (il cut() ESC/POS le inserisce come padding
+    // per far avanzare la carta prima del taglio, ma sulla UI sono inutili)
+    const righe = [...scontrino.righe]
+    while (righe.length > 0 && (righe[righe.length - 1].testo || '').trim() === '') {
+        righe.pop()
+    }
+    if (righe.length === 0) return  // scontrino completamente vuoto: ignora
     emit('stampa_renderizzata', {
         stampante_id: stampante.id,
         reparto: stampante.reparto,
         nome: stampante.nome,
         timestamp: Date.now(),
-        righe: scontrino.righe,
+        righe,
     })
 }
 
