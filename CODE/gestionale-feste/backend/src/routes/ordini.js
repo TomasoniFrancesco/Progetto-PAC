@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const smistatore = require('../services/smistatore');
 const dispatcher = require('../services/printer-dispatcher');
+const predittore = require('../services/predittore');
 
 // GET /api/ordini - lista ordini del giorno con righe e note
 router.get('/', async (req, res) => {
@@ -222,6 +223,17 @@ router.post('/:id/conferma', async (req, res) => {
              FROM scorta s`
         );
         io.emit('scorte_aggiornate', scorteAggiornate);
+
+        // Predittore Scorte: ri-valuta le voci impattate da questo ordine.
+        // Se qualcuna passa a 'urgente' o 'esaurito' emette un alert WebSocket
+        // così i client (pagina /predittore, eventualmente cassa) possono reagire.
+        const vociImpattate = [...new Set(righe.map(r => r.voce_id))];
+        Promise.all(vociImpattate.map(id => predittore.eseguiPredizionePerVoce(id)))
+            .then(predizioni => {
+                const alert = predizioni.filter(p => p && (p.stato === 'urgente' || p.stato === 'esaurito'));
+                if (alert.length > 0) io.emit('predittore_alert', alert);
+            })
+            .catch(err => console.error('Predittore post-conferma:', err.message));
 
         res.json({ messaggio: 'Ordine confermato', id: parseInt(req.params.id), totale, comande, bloccati });
     } catch (err) {
