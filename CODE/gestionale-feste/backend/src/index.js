@@ -10,6 +10,7 @@ const scorteRouter = require('./routes/scorte');
 const stampantiRouter = require('./routes/stampanti');
 const smistatoreRouter = require('./routes/smistatore');
 const stampeRouter = require('./routes/stampe');
+const predittoreRouter = require('./routes/predittore');
 const smistatore = require('./services/smistatore');
 const dispatcher = require('./services/printer-dispatcher');
 const emulatore = require('./services/escpos-emulator');
@@ -38,6 +39,7 @@ app.use('/api/scorte', scorteRouter);
 app.use('/api/stampanti', stampantiRouter);
 app.use('/api/smistatore', smistatoreRouter);
 app.use('/api/stampe', stampeRouter);
+app.use('/api/predittore', predittoreRouter);
 
 // Inietta socket.io nei servizi che emettono eventi WebSocket
 dispatcher.setIo(io);
