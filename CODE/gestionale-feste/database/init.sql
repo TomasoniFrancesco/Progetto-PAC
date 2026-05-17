@@ -22,7 +22,10 @@ CREATE TABLE voce (
     ordine_schermo INT DEFAULT 0,
     visibile TINYINT(1) NOT NULL DEFAULT 1,
     asportabile TINYINT(1) NOT NULL DEFAULT 1,
-    modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla'
+    modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla',
+    tempo_preparazione INT NOT NULL DEFAULT 60,
+    tempo_riapprovvigionamento INT NOT NULL DEFAULT 600,
+    priorita_voce ENUM('bassa', 'media', 'alta') NOT NULL DEFAULT 'media'
 );
 
 -- Scorte per voce (una riga per pietanza)
@@ -107,6 +110,12 @@ CREATE TABLE stampante (
     primaria TINYINT(1) NOT NULL DEFAULT 1,
     attiva TINYINT(1) NOT NULL DEFAULT 1,
     stato VARCHAR(20) DEFAULT 'sconosciuto'
+);
+
+-- Configurazione runtime (chiave/valore) — usata dal Predittore Scorte
+CREATE TABLE configurazione (
+    chiave VARCHAR(50) PRIMARY KEY,
+    valore VARCHAR(255) NOT NULL
 );
 
 -- Audit log delle stampe eseguite
@@ -196,6 +205,12 @@ INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, sett
 ('D002', 'Crostata', 4.00, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 2),
 ('D003', 'Gelato coppetta', 3.50, 'Dolce', 'Dolci', 'bar', '#8E44AD', 1),
 ('D004', 'Panna cotta', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1);
+
+-- Configurazione default Predittore Scorte
+INSERT INTO configurazione (chiave, valore) VALUES
+('evento_fine_oggi', '23:30'),
+('soglia_warn_urgenza', '300'),
+('giorni_storico', '30');
 
 INSERT INTO allergene (nome, descr) VALUES
 ('Glutine', 'Cereali contenenti glutine'),
