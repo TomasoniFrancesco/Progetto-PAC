@@ -197,6 +197,26 @@ async function avviaServer() {
                 console.log('Migrazione IP stampanti:', errMigrazione.message);
             }
 
+            // Migrazione: aggiungi seconda cucina (cucina_2) se mancante.
+            // Serve per dimostrare il bilanciamento del carico nello smistatore.
+            try {
+                const [c2] = await db.query(`SELECT id FROM stampante WHERE reparto = 'cucina_2'`);
+                if (c2.length === 0) {
+                    await db.query(
+                        `INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello)
+                         VALUES ('cucina_2', 'Cucina B', '127.0.0.1', 9103, 'EPSON')`
+                    );
+                    // Mentre ci siamo, rinominiamo la cucina originale a "Cucina A"
+                    await db.query(
+                        `UPDATE stampante SET nome = 'Cucina A'
+                         WHERE reparto = 'cucina' AND (nome IS NULL OR nome = 'Stampante Cucina')`
+                    );
+                    console.log('Migrazione stampante: cucina_2 aggiunta (Cucina B su porta 9103)');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione cucina_2:', errMigrazione.message);
+            }
+
             // Migrazione: crea tabella stampa_eseguita (audit log delle stampe)
             try {
                 await db.query(`
@@ -227,6 +247,16 @@ async function avviaServer() {
                     smistatore.setStatoStampante(s.reparto, s.stato === 'offline' ? 'offline' : 'online');
                 }
                 console.log(`Smistatore: caricate ${stampanti.length} stampanti`);
+
+                // Fallback default per il bilanciamento del carico tra le due cucine.
+                // Le voci con settore_stampa='cucina' verranno smistate da selectMinCarico
+                // tra cucina e cucina_2 in base al carico istantaneo.
+                const repartiSet = new Set(stampanti.map(s => s.reparto));
+                if (repartiSet.has('cucina') && repartiSet.has('cucina_2')) {
+                    smistatore.setFallback('cucina', ['cucina_2']);
+                    smistatore.setFallback('cucina_2', ['cucina']);
+                    console.log('Smistatore: fallback bidirezionale cucina <-> cucina_2 configurato');
+                }
             } catch (errInit) {
                 console.log('Init smistatore:', errInit.message);
             }

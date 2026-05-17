@@ -204,7 +204,10 @@ INSERT INTO allergene (nome, descr) VALUES
 
 -- Stampanti: configurate per emulatore TCP locale (modalità demo).
 -- Per produzione con hardware reale, aggiornare indirizzo_ip/porta.
+-- Le due cucine ("cucina" e "cucina_2") sono reparti distinti usati dallo
+-- smistatore per bilanciare il carico (fallback reciproco configurato al boot).
 INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello) VALUES
-('cucina', 'Stampante Cucina', '127.0.0.1', 9100, 'EPSON'),
+('cucina', 'Cucina A', '127.0.0.1', 9100, 'EPSON'),
+('cucina_2', 'Cucina B', '127.0.0.1', 9103, 'EPSON'),
 ('bar', 'Stampante Bar', '127.0.0.1', 9101, 'EPSON'),
 ('griglia', 'Stampante Griglia', '127.0.0.1', 9102, 'EPSON');
