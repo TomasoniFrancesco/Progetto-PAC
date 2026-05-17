@@ -154,6 +154,45 @@ async function avviaServer() {
                 console.log('Migrazione tempo_preparazione:', errMigrazione.message);
             }
 
+            // Migrazione: colonne Predittore Scorte su voce (tempo_riapprovvigionamento, priorita_voce)
+            try {
+                const colonneVoce = [
+                    { nome: 'tempo_riapprovvigionamento', ddl: 'ADD COLUMN tempo_riapprovvigionamento INT NOT NULL DEFAULT 600' },
+                    { nome: 'priorita_voce', ddl: "ADD COLUMN priorita_voce ENUM('bassa','media','alta') NOT NULL DEFAULT 'media'" },
+                ];
+                const [colsVoce] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce'`
+                );
+                const presentiVoce = new Set(colsVoce.map(c => c.COLUMN_NAME));
+                for (const col of colonneVoce) {
+                    if (!presentiVoce.has(col.nome)) {
+                        await db.query(`ALTER TABLE voce ${col.ddl}`);
+                        console.log(`Migrazione voce: colonna ${col.nome} aggiunta`);
+                    }
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione voce predittore:', errMigrazione.message);
+            }
+
+            // Migrazione: tabella configurazione (chiave/valore) per parametri runtime
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS configurazione (
+                        chiave VARCHAR(50) PRIMARY KEY,
+                        valore VARCHAR(255) NOT NULL
+                    )
+                `);
+                await db.query(`
+                    INSERT IGNORE INTO configurazione (chiave, valore) VALUES
+                    ('evento_fine_oggi', '23:30'),
+                    ('soglia_warn_urgenza', '300'),
+                    ('giorni_storico', '30')
+                `);
+            } catch (errMigrazione) {
+                console.log('Migrazione configurazione:', errMigrazione.message);
+            }
+
             // Migrazione: nuove colonne su stampante (modello, nome, primaria, attiva)
             try {
                 const colonneRichieste = [
