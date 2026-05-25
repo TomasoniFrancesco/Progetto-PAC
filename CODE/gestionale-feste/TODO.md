@@ -15,7 +15,7 @@
 
 ## 1. Database e struttura del menù
 
-- [ ] Possibilità di creare prodotti "fittizi" (senza ingredienti reali) ## esiste sistema "pietanze aggregate" (voce_composizione + ModalePietanzaAggregata), da verificare se copre il caso
+- [x] Possibilità di creare prodotti "fittizi" (senza ingredienti reali) ## esiste sistema "pietanze aggregate" (voce_composizione + ModalePietanzaAggregata), da verificare se copre il caso
 
 ---
 
@@ -62,12 +62,12 @@
 
 ## 5. Gestione stampanti e stampa
 
-- [ ] Tabella associazione settore di stampa → una o più stampanti fisiche
-- [ ] Alla conferma ordine: raggruppamento pietanze per settore di stampa
-- [ ] Invio biglietto separato per ogni settore alle stampanti associate
-- [ ] Gestione modalità "stampa singola quantità singola" (N biglietti per N porzioni)
-- [ ] Gestione modalità "stampa singola quantità multipla" (1 biglietto con totale)
-- [ ] Gestione modalità "stampa doppia copia"
+- [x] Tabella associazione settore di stampa → una o più stampanti fisiche
+- [x] Alla conferma ordine: raggruppamento pietanze per settore di stampa
+- [x] Invio biglietto separato per ogni settore alle stampanti associate
+- [x] Gestione modalità "stampa singola quantità singola" (N biglietti per N porzioni)
+- [x] Gestione modalità "stampa singola quantità multipla" (1 biglietto con totale)
+- [x] Gestione modalità "stampa doppia copia"
 - [ ] Generazione "copia cliente" su stampante cassa per prodotti con flag `copia_scontrino_cliente`
 
 ---
@@ -75,7 +75,7 @@
 ## 6. Gestione asporto
 
 - [x] Tasto "Asporto" toggle: cambia colore se attivo, deselezionabile in qualsiasi momento ## duplicato della sez.3
-- [ ] Aggiunta titolo "ASPORTO" a caratteri grandi in testa al biglietto ## no stampa
+- [x] Aggiunta titolo "ASPORTO" a caratteri grandi in testa al biglietto ## implementata nel formatter
 - [ ] Alert non bloccante se nell'ordine asporto sono presenti pietanze "non da asporto" ## flag asportabile in DB ma mai controllato in Cassa
 - [ ] Pietanze "non da asporto" posizionate in coda al biglietto con separatore "NON ASPORTO" ## no stampa
 
