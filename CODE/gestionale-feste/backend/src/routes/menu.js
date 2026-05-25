@@ -40,6 +40,26 @@ router.get('/settori', async (req, res) => {
     }
 });
 
+// GET /api/menu/tutti-allergeni - mappa voce_id -> [allergeni] (per precarico frontend)
+router.get('/tutti-allergeni', async (req, res) => {
+    try {
+        const [righe] = await db.query(
+            `SELECT va.voce_id, a.id, a.nome, a.descr
+             FROM voce_allergene va
+             JOIN allergene a ON a.id = va.allergene_id
+             ORDER BY va.voce_id, a.nome`
+        );
+        const mappa = {};
+        righe.forEach(r => {
+            if (!mappa[r.voce_id]) mappa[r.voce_id] = [];
+            mappa[r.voce_id].push({ id: r.id, nome: r.nome, descr: r.descr });
+        });
+        res.json(mappa);
+    } catch (err) {
+        res.status(500).json({ errore: err.message });
+    }
+});
+
 // GET /api/menu/opzioni - valori distinti per i campi dropdown
 router.get('/opzioni', async (req, res) => {
     try {

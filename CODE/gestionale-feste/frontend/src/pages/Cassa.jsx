@@ -72,8 +72,8 @@ export default function Cassa() {
     const [modaleScontistica, setModaleScontistica] = useState(false)
 
     const [modaleAllergeni, setModaleAllergeni] = useState(false)
-    const [allergeniDati, setAllergeniDati] = useState({})
-    const [caricaAllergeni, setCaricaAllergeni] = useState(false)
+    const [allergeniPerVoce, setAllergeniPerVoce] = useState({})
+    const [modaleVoceAllergeni, setModaleVoceAllergeni] = useState(null) // { id, nome }
 
     // Tastierino
     const [modaleTastierino, setModaleTastierino] = useState(false)
@@ -131,6 +131,7 @@ export default function Cassa() {
     useEffect(() => {
         caricaMenu()
         caricaScorte()
+        caricaTuttiAllergeni()
         socket.on('scorte_aggiornate', nuoveScorte => {
             const mappa = {}
             nuoveScorte.forEach(s => { mappa[s.voce_id] = s })
@@ -138,6 +139,20 @@ export default function Cassa() {
         })
         return () => socket.off('scorte_aggiornate')
     }, [])
+
+    // Tastiera fisica quando il tastierino è aperto
+    useEffect(() => {
+        if (!modaleTastierino) return
+        const onKey = (e) => {
+            if (e.key >= '0' && e.key <= '9') { e.preventDefault(); gestisciTastierino(e.key) }
+            else if (e.key === ',' || e.key === '.') { e.preventDefault(); gestisciTastierino(',') }
+            else if (e.key === 'Backspace') { e.preventDefault(); gestisciTastierino('DEL') }
+            else if (e.key === 'Enter') { e.preventDefault(); setImportoPagato(importoTemp); setModaleTastierino(false) }
+            else if (e.key === 'Escape') { e.preventDefault(); setModaleTastierino(false) }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [modaleTastierino, importoTemp])
 
     async function caricaMenu() {
         try { setVoci(await (await fetch(`${API}/menu`)).json()) }
@@ -152,6 +167,13 @@ export default function Cassa() {
             dati.forEach(s => { mappa[s.voce_id] = s })
             setScorteMap(mappa)
         } catch (err) { console.error('Errore scorte', err) }
+    }
+
+    async function caricaTuttiAllergeni() {
+        try {
+            const dati = await (await fetch(`${API}/menu/tutti-allergeni`)).json()
+            setAllergeniPerVoce(dati)
+        } catch (err) { console.error('Errore allergeni', err) }
     }
 
     function aggiungiVoce(voce) {
@@ -216,14 +238,8 @@ export default function Cassa() {
         setRighe([]); setAsporto(false); setImportoPagato(''); setScontoValore(''); setRigaAperta(null)
     }
 
-    async function apriAllergeni() {
-        setModaleAllergeni(true); setCaricaAllergeni(true)
-        try {
-            const res = {}
-            await Promise.all(righe.map(async r => { res[r.voce_id] = await (await fetch(`${API}/menu/${r.voce_id}/allergeni`)).json() }))
-            setAllergeniDati(res)
-        } catch (err) { console.error('Errore allergeni', err) }
-        finally { setCaricaAllergeni(false) }
+    function apriAllergeni() {
+        setModaleAllergeni(true)
     }
 
     async function apriCronologia() {
@@ -311,11 +327,21 @@ export default function Cassa() {
 
                                                             return (
                                                                 <button key={voce.id} onClick={() => aggiungiVoce(voce)} disabled={disabled}
-                                                                    style={{ background: backgroundColor, border: 'none', borderRadius: 12, padding: '8px 8px 7px', textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0, overflow: 'hidden', flex: 1 }}
+                                                                    style={{ position: 'relative', background: backgroundColor, border: 'none', borderRadius: 12, padding: '8px 8px 7px', textAlign: 'left', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'transform 0.1s, box-shadow 0.1s', minHeight: 0, overflow: 'hidden', flex: 1 }}
                                                                     onMouseDown={e => { if (!disabled) { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,81,71,0.12)' } }}
                                                                     onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
                                                                     onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)' }}
                                                                 >
+                                                                    {/* Badge "i" allergeni */}
+                                                                    {(() => {
+                                                                        const haAllergeni = (allergeniPerVoce[voce.id] || []).length > 0
+                                                                        return (
+                                                                            <span
+                                                                                onClick={e => { e.stopPropagation(); setModaleVoceAllergeni({ id: voce.id, nome: voce.nome }) }}
+                                                                                style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: haAllergeni ? 'rgba(0,0,0,0.52)' : 'rgba(0,0,0,0.18)', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, lineHeight: 1, userSelect: 'none', fontFamily: 'Georgia, serif', fontStyle: 'italic' }}
+                                                                            >i</span>
+                                                                        )
+                                                                    })()}
                                                                     <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: fontSizeNome, color: isCustomColor ? textColor : C.onSurface, margin: 0, lineHeight: 1.15, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflowWrap: 'anywhere', wordBreak: 'break-word', padding: '0 2px' }}>{voce.nome}</h3>
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -576,32 +602,57 @@ export default function Cassa() {
                 </div>
             )}
 
-            {/* ── MODALE ALLERGENI ── */}
+            {/* ── MODALE ALLERGENI ORDINE ── */}
             {modaleAllergeni && (
                 <div style={overlayStyle} onClick={() => setModaleAllergeni(false)}>
                     <div style={modaleStyle} onClick={e => e.stopPropagation()}>
                         <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 20px', color: C.primary }}>Allergeni — ordine corrente</h3>
-                        {caricaAllergeni
-                            ? <div style={{ textAlign: 'center', padding: 24, color: C.onSurfaceVariant }}>Caricamento...</div>
-                            : righe.map(riga => {
-                                const all = allergeniDati[riga.voce_id] || []
-                                return (
-                                    <div key={riga.voce_id} style={{ marginBottom: 14, padding: '12px 14px', background: C.surfaceLow, borderRadius: 10 }}>
-                                        <div style={{ fontWeight: 700, marginBottom: 8, color: C.onSurface }}>{riga.nome}</div>
-                                        {all.length === 0
-                                            ? <span style={{ fontSize: 13, color: C.onSurfaceVariant }}>Nessun allergene registrato</span>
-                                            : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                                {all.map((a, i) => (
-                                                    <span key={i} style={{ background: '#fde8e8', color: C.tertiary, padding: '3px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{a.nome ?? a}</span>
-                                                ))}
-                                            </div>
-                                        }
-                                    </div>
-                                )
-                            })
-                        }
+                        {righe.map(riga => {
+                            const all = allergeniPerVoce[riga.voce_id] || []
+                            return (
+                                <div key={riga.voce_id} style={{ marginBottom: 14, padding: '12px 14px', background: C.surfaceLow, borderRadius: 10 }}>
+                                    <div style={{ fontWeight: 700, marginBottom: 8, color: C.onSurface }}>{riga.nome}</div>
+                                    {all.length === 0
+                                        ? <span style={{ fontSize: 13, color: C.onSurfaceVariant }}>Nessun allergene registrato</span>
+                                        : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                            {all.map((a, i) => (
+                                                <span key={i} style={{ background: '#fde8e8', color: C.tertiary, padding: '3px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{a.nome}</span>
+                                            ))}
+                                        </div>
+                                    }
+                                </div>
+                            )
+                        })}
                         <button onClick={() => setModaleAllergeni(false)}
                             style={{ marginTop: 8, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
+                            Chiudi
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODALE ALLERGENI VOCE SINGOLA ── */}
+            {modaleVoceAllergeni && (
+                <div style={overlayStyle} onClick={() => setModaleVoceAllergeni(null)}>
+                    <div style={{ ...modaleStyle, minWidth: 320, maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ fontFamily: 'Public Sans, sans-serif', fontWeight: 800, fontSize: 20, margin: '0 0 18px', color: C.primary }}>
+                            Allergeni
+                        </h3>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: C.onSurface, marginBottom: 16 }}>{modaleVoceAllergeni.nome}</div>
+                        {(() => {
+                            const all = allergeniPerVoce[modaleVoceAllergeni.id] || []
+                            return all.length === 0
+                                ? <div style={{ padding: '12px 14px', background: C.surfaceLow, borderRadius: 10, fontSize: 14, color: C.onSurfaceVariant }}>
+                                    Nessun allergene registrato
+                                </div>
+                                : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {all.map((a, i) => (
+                                        <span key={i} style={{ background: '#fde8e8', color: C.tertiary, padding: '6px 16px', borderRadius: 20, fontSize: 14, fontWeight: 600 }}>{a.nome}</span>
+                                    ))}
+                                </div>
+                        })()}
+                        <button onClick={() => setModaleVoceAllergeni(null)}
+                            style={{ marginTop: 20, width: '100%', padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, background: C.surfaceHigh, color: C.onSurface }}>
                             Chiudi
                         </button>
                     </div>
