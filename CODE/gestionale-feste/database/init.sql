@@ -118,6 +118,21 @@ CREATE TABLE configurazione (
     valore VARCHAR(255) NOT NULL
 );
 
+-- Ordini
+CREATE TABLE ordine (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tavolo INT,
+    stato ENUM('in_composizione', 'confermato', 'annullato') NOT NULL DEFAULT 'in_composizione',
+    asporto TINYINT(1) NOT NULL DEFAULT 0,
+    sconto DECIMAL(5,2) DEFAULT 0.00,
+    tipo_sconto ENUM('percentuale', 'fisso') DEFAULT 'percentuale',
+    totale DECIMAL(8,2) DEFAULT 0.00,
+    importo_pagato DECIMAL(8,2),
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    utente_id INT,
+    FOREIGN KEY (utente_id) REFERENCES utente(id)
+);
+
 -- Audit log delle stampe eseguite
 CREATE TABLE stampa_eseguita (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -133,21 +148,6 @@ CREATE TABLE stampa_eseguita (
     FOREIGN KEY (stampante_id) REFERENCES stampante(id) ON DELETE SET NULL,
     INDEX idx_ordine (ordine_id),
     INDEX idx_timestamp (timestamp)
-);
-
--- Ordini
-CREATE TABLE ordine (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    tavolo INT,
-    stato ENUM('in_composizione', 'confermato', 'annullato') NOT NULL DEFAULT 'in_composizione',
-    asporto TINYINT(1) NOT NULL DEFAULT 0,
-    sconto DECIMAL(5,2) DEFAULT 0.00,
-    tipo_sconto ENUM('percentuale', 'fisso') DEFAULT 'percentuale',
-    totale DECIMAL(8,2) DEFAULT 0.00,
-    importo_pagato DECIMAL(8,2),
-    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    utente_id INT,
-    FOREIGN KEY (utente_id) REFERENCES utente(id)
 );
 
 -- Righe dell'ordine (voce + quantita + note)
