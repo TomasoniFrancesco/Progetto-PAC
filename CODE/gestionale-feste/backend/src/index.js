@@ -8,6 +8,12 @@ const ordiniRouter = require('./routes/ordini');
 const menuRouter = require('./routes/menu');
 const scorteRouter = require('./routes/scorte');
 const stampantiRouter = require('./routes/stampanti');
+const smistatoreRouter = require('./routes/smistatore');
+const stampeRouter = require('./routes/stampe');
+const predittoreRouter = require('./routes/predittore');
+const smistatore = require('./services/smistatore');
+const dispatcher = require('./services/printer-dispatcher');
+const emulatore = require('./services/escpos-emulator');
 
 const app = express();
 const server = http.createServer(app);
@@ -31,6 +37,13 @@ app.use('/api/ordini', ordiniRouter);
 app.use('/api/menu', menuRouter);
 app.use('/api/scorte', scorteRouter);
 app.use('/api/stampanti', stampantiRouter);
+app.use('/api/smistatore', smistatoreRouter);
+app.use('/api/stampe', stampeRouter);
+app.use('/api/predittore', predittoreRouter);
+
+// Inietta socket.io nei servizi che emettono eventi WebSocket
+dispatcher.setIo(io);
+emulatore.setIo(io);
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
@@ -127,6 +140,179 @@ async function avviaServer() {
                 console.log('Migrazione palette: colori normalizzati');
             } catch (errMigrazione) {
                 console.log('Migrazione palette:', errMigrazione.message);
+            }
+
+            // Migrazione: aggiunge colonna tempo_preparazione su voce (per lo smistatore)
+            try {
+                const [cols] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce' AND COLUMN_NAME = 'tempo_preparazione'`
+                );
+                if (cols.length === 0) {
+                    await db.query(`ALTER TABLE voce ADD COLUMN tempo_preparazione INT NOT NULL DEFAULT 60`);
+                    console.log('Migrazione voce: colonna tempo_preparazione aggiunta');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione tempo_preparazione:', errMigrazione.message);
+            }
+
+            // Migrazione: colonne Predittore Scorte su voce (tempo_riapprovvigionamento, priorita_voce)
+            try {
+                const colonneVoce = [
+                    { nome: 'tempo_riapprovvigionamento', ddl: 'ADD COLUMN tempo_riapprovvigionamento INT NOT NULL DEFAULT 600' },
+                    { nome: 'priorita_voce', ddl: "ADD COLUMN priorita_voce ENUM('bassa','media','alta') NOT NULL DEFAULT 'media'" },
+                ];
+                const [colsVoce] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce'`
+                );
+                const presentiVoce = new Set(colsVoce.map(c => c.COLUMN_NAME));
+                for (const col of colonneVoce) {
+                    if (!presentiVoce.has(col.nome)) {
+                        await db.query(`ALTER TABLE voce ${col.ddl}`);
+                        console.log(`Migrazione voce: colonna ${col.nome} aggiunta`);
+                    }
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione voce predittore:', errMigrazione.message);
+            }
+
+            // Migrazione: tabella configurazione (chiave/valore) per parametri runtime
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS configurazione (
+                        chiave VARCHAR(50) PRIMARY KEY,
+                        valore VARCHAR(255) NOT NULL
+                    )
+                `);
+                await db.query(`
+                    INSERT IGNORE INTO configurazione (chiave, valore) VALUES
+                    ('evento_fine_oggi', '23:30'),
+                    ('soglia_warn_urgenza', '300'),
+                    ('giorni_storico', '30')
+                `);
+            } catch (errMigrazione) {
+                console.log('Migrazione configurazione:', errMigrazione.message);
+            }
+
+            // Migrazione: nuove colonne su stampante (modello, nome, primaria, attiva)
+            try {
+                const colonneRichieste = [
+                    { nome: 'nome', ddl: 'ADD COLUMN nome VARCHAR(50)' },
+                    { nome: 'modello', ddl: "ADD COLUMN modello VARCHAR(20) NOT NULL DEFAULT 'EPSON'" },
+                    { nome: 'primaria', ddl: 'ADD COLUMN primaria TINYINT(1) NOT NULL DEFAULT 1' },
+                    { nome: 'attiva', ddl: 'ADD COLUMN attiva TINYINT(1) NOT NULL DEFAULT 1' },
+                ];
+                const [cols] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stampante'`
+                );
+                const presenti = new Set(cols.map(c => c.COLUMN_NAME));
+                for (const col of colonneRichieste) {
+                    if (!presenti.has(col.nome)) {
+                        await db.query(`ALTER TABLE stampante ${col.ddl}`);
+                        console.log(`Migrazione stampante: colonna ${col.nome} aggiunta`);
+                    }
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione stampante:', errMigrazione.message);
+            }
+
+            // Migrazione: riporta le stampanti su 127.0.0.1 (emulatore locale) se sono
+            // ancora puntate ai placeholder 192.168.1.x del dataset di esempio originale.
+            try {
+                const mapping = [
+                    { reparto: 'cucina', porta: 9100, nome: 'Stampante Cucina' },
+                    { reparto: 'bar', porta: 9101, nome: 'Stampante Bar' },
+                    { reparto: 'griglia', porta: 9102, nome: 'Stampante Griglia' },
+                ];
+                for (const m of mapping) {
+                    await db.query(
+                        `UPDATE stampante
+                         SET indirizzo_ip = '127.0.0.1', porta = ?, nome = COALESCE(nome, ?)
+                         WHERE reparto = ? AND indirizzo_ip LIKE '192.168.%'`,
+                        [m.porta, m.nome, m.reparto]
+                    );
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione IP stampanti:', errMigrazione.message);
+            }
+
+            // Migrazione: aggiungi seconda cucina (cucina_2) se mancante.
+            // Serve per dimostrare il bilanciamento del carico nello smistatore.
+            try {
+                const [c2] = await db.query(`SELECT id FROM stampante WHERE reparto = 'cucina_2'`);
+                if (c2.length === 0) {
+                    await db.query(
+                        `INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello)
+                         VALUES ('cucina_2', 'Cucina B', '127.0.0.1', 9103, 'EPSON')`
+                    );
+                    // Mentre ci siamo, rinominiamo la cucina originale a "Cucina A"
+                    await db.query(
+                        `UPDATE stampante SET nome = 'Cucina A'
+                         WHERE reparto = 'cucina' AND (nome IS NULL OR nome = 'Stampante Cucina')`
+                    );
+                    console.log('Migrazione stampante: cucina_2 aggiunta (Cucina B su porta 9103)');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione cucina_2:', errMigrazione.message);
+            }
+
+            // Migrazione: crea tabella stampa_eseguita (audit log delle stampe)
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS stampa_eseguita (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        ordine_id INT NOT NULL,
+                        stampante_id INT,
+                        reparto VARCHAR(50) NOT NULL,
+                        payload JSON,
+                        esito ENUM('ok', 'errore', 'offline_rerouted', 'no_stampante') NOT NULL,
+                        errore TEXT,
+                        durata_ms INT,
+                        timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (ordine_id) REFERENCES ordine(id) ON DELETE CASCADE,
+                        FOREIGN KEY (stampante_id) REFERENCES stampante(id) ON DELETE SET NULL,
+                        INDEX idx_ordine (ordine_id),
+                        INDEX idx_timestamp (timestamp)
+                    )
+                `);
+            } catch (errMigrazione) {
+                console.log('Migrazione stampa_eseguita:', errMigrazione.message);
+            }
+
+            // Inizializzazione smistatore: carica stato stampanti dal DB
+            try {
+                const [stampanti] = await db.query('SELECT reparto, stato FROM stampante');
+                for (const s of stampanti) {
+                    smistatore.setStatoStampante(s.reparto, s.stato === 'offline' ? 'offline' : 'online');
+                }
+                console.log(`Smistatore: caricate ${stampanti.length} stampanti`);
+
+                // Fallback default per il bilanciamento del carico tra le due cucine.
+                // Le voci con settore_stampa='cucina' verranno smistate da selectMinCarico
+                // tra cucina e cucina_2 in base al carico istantaneo.
+                const repartiSet = new Set(stampanti.map(s => s.reparto));
+                if (repartiSet.has('cucina') && repartiSet.has('cucina_2')) {
+                    smistatore.setFallback('cucina', ['cucina_2']);
+                    smistatore.setFallback('cucina_2', ['cucina']);
+                    console.log('Smistatore: fallback bidirezionale cucina <-> cucina_2 configurato');
+                }
+            } catch (errInit) {
+                console.log('Init smistatore:', errInit.message);
+            }
+
+            // Avvio emulatori TCP ESC/POS (modalità demo: stampanti su 127.0.0.1)
+            // Disabilitabile con EMULATORE_ATTIVO=0 in produzione con hardware reale.
+            if (process.env.EMULATORE_ATTIVO !== '0') {
+                try {
+                    const n = await emulatore.avviaEmulatori(db);
+                    console.log(`Emulatore ESC/POS: ${n} stampanti virtuali in ascolto`);
+                } catch (errEmu) {
+                    console.log('Avvio emulatori:', errEmu.message);
+                }
+            } else {
+                console.log('Emulatore ESC/POS: disabilitato (EMULATORE_ATTIVO=0)');
             }
 
             // Migrazione: inizializza scorte a 10 per tutti i prodotti

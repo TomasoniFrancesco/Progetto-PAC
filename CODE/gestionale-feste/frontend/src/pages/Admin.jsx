@@ -162,12 +162,25 @@ export default function Admin() {
                     })}
                 </nav>
 
-                {/* Footer sidebar */}
-                <div style={{ padding: '12px 10px', borderTop: `1px solid ${C.surfaceHigh}` }}>
+                {/* Footer sidebar — link ad altre pagine dell'app */}
+                <div style={{ padding: '12px 10px', borderTop: `1px solid ${C.surfaceHigh}`, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <a href="/predittore" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceLow}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <span style={{ fontSize: 18 }}>📊</span>
+                        Predittore Scorte
+                    </a>
+                    <a href="/simulazione" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceLow}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <span style={{ fontSize: 18 }}>🖨</span>
+                        Simulazione Stampanti
+                    </a>
                     <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, color: C.onSurfaceVariant, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'background 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.background = C.surfaceLow}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        ← Vai alla Cassa
+                        <span style={{ fontSize: 18 }}>←</span>
+                        Vai alla Cassa
                     </a>
                 </div>
             </aside>

@@ -22,7 +22,10 @@ CREATE TABLE voce (
     ordine_schermo INT DEFAULT 0,
     visibile TINYINT(1) NOT NULL DEFAULT 1,
     asportabile TINYINT(1) NOT NULL DEFAULT 1,
-    modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla'
+    modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla',
+    tempo_preparazione INT NOT NULL DEFAULT 60,
+    tempo_riapprovvigionamento INT NOT NULL DEFAULT 600,
+    priorita_voce ENUM('bassa', 'media', 'alta') NOT NULL DEFAULT 'media'
 );
 
 -- Scorte per voce (una riga per pietanza)
@@ -100,9 +103,36 @@ CREATE TABLE nota_preimpostata (
 CREATE TABLE stampante (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reparto VARCHAR(50) NOT NULL,
+    nome VARCHAR(50),
     indirizzo_ip VARCHAR(50) NOT NULL,
     porta INT NOT NULL DEFAULT 9100,
+    modello VARCHAR(20) NOT NULL DEFAULT 'EPSON',
+    primaria TINYINT(1) NOT NULL DEFAULT 1,
+    attiva TINYINT(1) NOT NULL DEFAULT 1,
     stato VARCHAR(20) DEFAULT 'sconosciuto'
+);
+
+-- Configurazione runtime (chiave/valore) — usata dal Predittore Scorte
+CREATE TABLE configurazione (
+    chiave VARCHAR(50) PRIMARY KEY,
+    valore VARCHAR(255) NOT NULL
+);
+
+-- Audit log delle stampe eseguite
+CREATE TABLE stampa_eseguita (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ordine_id INT NOT NULL,
+    stampante_id INT,
+    reparto VARCHAR(50) NOT NULL,
+    payload JSON,
+    esito ENUM('ok', 'errore', 'offline_rerouted', 'no_stampante') NOT NULL,
+    errore TEXT,
+    durata_ms INT,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ordine_id) REFERENCES ordine(id) ON DELETE CASCADE,
+    FOREIGN KEY (stampante_id) REFERENCES stampante(id) ON DELETE SET NULL,
+    INDEX idx_ordine (ordine_id),
+    INDEX idx_timestamp (timestamp)
 );
 
 -- Ordini
@@ -176,12 +206,23 @@ INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, sett
 ('D003', 'Gelato coppetta', 3.50, 'Dolce', 'Dolci', 'bar', '#8E44AD', 1),
 ('D004', 'Panna cotta', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1);
 
+-- Configurazione default Predittore Scorte
+INSERT INTO configurazione (chiave, valore) VALUES
+('evento_fine_oggi', '23:30'),
+('soglia_warn_urgenza', '300'),
+('giorni_storico', '30');
+
 INSERT INTO allergene (nome, descr) VALUES
 ('Glutine', 'Cereali contenenti glutine'),
 ('Lattosio', 'Latte e derivati'),
 ('Frutta a guscio', 'Noci, mandorle, nocciole');
 
-INSERT INTO stampante (reparto, indirizzo_ip, porta) VALUES
-('cucina', '192.168.1.101', 9100),
-('bar', '192.168.1.102', 9100),
-('griglia', '192.168.1.103', 9100);
+-- Stampanti: configurate per emulatore TCP locale (modalità demo).
+-- Per produzione con hardware reale, aggiornare indirizzo_ip/porta.
+-- Le due cucine ("cucina" e "cucina_2") sono reparti distinti usati dallo
+-- smistatore per bilanciare il carico (fallback reciproco configurato al boot).
+INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello) VALUES
+('cucina', 'Cucina A', '127.0.0.1', 9100, 'EPSON'),
+('cucina_2', 'Cucina B', '127.0.0.1', 9103, 'EPSON'),
+('bar', 'Stampante Bar', '127.0.0.1', 9101, 'EPSON'),
+('griglia', 'Stampante Griglia', '127.0.0.1', 9102, 'EPSON');
