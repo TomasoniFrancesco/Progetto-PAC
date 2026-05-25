@@ -130,6 +130,7 @@ router.post('/:id/conferma', async (req, res) => {
         const [righe] = await conn.query(
             `SELECT r.id AS riga_id, r.voce_id, r.quantita,
                     v.nome, v.prezzo, v.settore_stampa, v.modalita_stampa, v.tempo_preparazione,
+                    v.copia_scontrino_cliente,
                     s.quantita AS scorta_quantita, s.soglia_giallo, s.soglia_rosso, s.attiva AS scorta_attiva
              FROM ordine_riga r
              JOIN voce v ON r.voce_id = v.id
@@ -171,6 +172,12 @@ router.post('/:id/conferma', async (req, res) => {
             : Math.min(scontoNum, totaleLordo);
         const totale = parseFloat((totaleLordo - scontoImporto).toFixed(2));
 
+        const importoPagatoNum = parseFloat(importo_pagato);
+        if (!Number.isFinite(importoPagatoNum) || importoPagatoNum <= 0) {
+            await conn.rollback();
+            return res.status(400).json({ errore: 'Importo pagato obbligatorio' });
+        }
+
         // Aggiorna scorte
         for (const riga of righe) {
             await conn.query(
@@ -189,7 +196,7 @@ router.post('/:id/conferma', async (req, res) => {
                 tipo_sconto = ?,
                 importo_pagato = ?
              WHERE id = ?`,
-            [totale, asporto ? 1 : 0, scontoNum, tipoSconto, importo_pagato || null, req.params.id]
+            [totale, asporto ? 1 : 0, scontoNum, tipoSconto, importoPagatoNum, req.params.id]
         );
 
         await conn.commit();
@@ -210,6 +217,30 @@ router.post('/:id/conferma', async (req, res) => {
             );
         }
         if (bloccati.length) io.emit('task_bloccati', bloccati);
+
+        const righeCopiaCliente = righe.filter(r => r.copia_scontrino_cliente);
+        if (righeCopiaCliente.length) {
+            const resto = importoPagatoNum > totale
+                ? parseFloat((importoPagatoNum - totale).toFixed(2))
+                : null
+            const copiaCliente = {
+                ordine_id: parseInt(req.params.id),
+                asporto: !!asporto,
+                totale,
+                importo_pagato: importoPagatoNum,
+                resto,
+                timestamp: Date.now(),
+                righe: righeCopiaCliente.map(r => ({
+                    nome: r.nome,
+                    quantita: r.quantita,
+                    prezzo: parseFloat(r.prezzo),
+                    note: r.note,
+                })),
+            }
+            dispatcher.inviaCopiaCliente(copiaCliente).catch(err =>
+                console.error(`Stampa copia cliente ordine ${copiaCliente.ordine_id} fallita:`, err.message)
+            )
+        }
 
         // Notifica scorte aggiornate via WebSocket
         const [scorteAggiornate] = await db.query(

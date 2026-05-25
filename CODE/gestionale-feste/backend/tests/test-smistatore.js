@@ -372,7 +372,7 @@ async function main() {
             assert.strictEqual(creazione.status, 201)
             const id = creazione.body.id
 
-            const conferma = await http_('POST', `/api/ordini/${id}/conferma`, { asporto: false })
+            const conferma = await http_('POST', `/api/ordini/${id}/conferma`, { asporto: false, importo_pagato: 10 })
             assert.strictEqual(conferma.status, 200)
             assert.ok(Array.isArray(conferma.body.comande))
             assert.strictEqual(conferma.body.comande.length, 2)
@@ -394,7 +394,7 @@ async function main() {
             await new Promise(r => setTimeout(r, 200))
 
             const c = await http_('POST', '/api/ordini', { righe: [{ voce_id: 13, quantita: 1, note: [] }] })  // Insalata (cucina)
-            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: false })
+            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: false, importo_pagato: 10 })
             assert.strictEqual(conf.body.comande[0].reparto, 'cucina_2', `atteso cucina_2, ottenuto ${conf.body.comande[0].reparto}`)
 
             // Verifica audit: la stampa deve essere ok (perché va su cucina_2 che è online)
@@ -410,7 +410,7 @@ async function main() {
 
         await test('Ordine con asporto → comanda con P alto (>= B=50)', async () => {
             const c = await http_('POST', '/api/ordini', { righe: [{ voce_id: 16, quantita: 1 }] })  // Birra
-            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: true })
+            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: true, importo_pagato: 10 })
             const P = conf.body.comande[0].righe[0].P
             assert.ok(P >= PESI.B - 5, `P atteso >= ${PESI.B - 5}, ottenuto ${P}`)
         })
@@ -421,7 +421,7 @@ async function main() {
             const c = await http_('POST', '/api/ordini', {
                 righe: [{ voce_id: 17, quantita: 10 }, { voce_id: 14, quantita: 1 }],  // 10 acque + 1 verdura
             })
-            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: false })
+            const conf = await http_('POST', `/api/ordini/${c.body.id}/conferma`, { asporto: false, importo_pagato: 10 })
             assert.strictEqual(conf.body.bloccati.length, 1)
             assert.strictEqual(conf.body.bloccati[0].voce_id, 17)
             assert.strictEqual(conf.body.comande.length, 1)

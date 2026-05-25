@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
              FROM voce v
              LEFT JOIN scorta s ON s.voce_id = v.id
              WHERE v.visibile = 1
-             ORDER BY v.settore_visualizzazione, v.ordine_schermo, v.nome`
+             ORDER BY v.settore_visualizzazione, v.nome`
         );
         res.json(voci);
     } catch (err) {
@@ -133,7 +133,7 @@ async function generaCodice(categoria) {
 
 // POST /api/menu - aggiunge voce singola (admin) — codice auto-generato
 router.post('/', async (req, res) => {
-    const { nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo, asportabile, modalita_stampa } = req.body;
+    const { nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, copia_scontrino_cliente, asportabile, modalita_stampa } = req.body;
 
     if (!nome || !nome.trim()) {
         return res.status(400).json({ errore: 'Il nome è obbligatorio' });
@@ -144,9 +144,9 @@ router.post('/', async (req, res) => {
 
         const [risultato] = await db.query(
             `INSERT INTO voce
-             (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo, asportabile, modalita_stampa)
+             (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, copia_scontrino_cliente, asportabile, modalita_stampa)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [codice, nome.trim(), prezzo || 0, categoria || null, settore_visualizzazione || null, settore_stampa || null, colore_tasto || '#4A90D9', ordine_schermo || 0, asportabile !== false ? 1 : 0, modalita_stampa || 'singola_multipla']
+            [codice, nome.trim(), prezzo || 0, categoria || null, settore_visualizzazione || null, settore_stampa || null, colore_tasto || '#4A90D9', copia_scontrino_cliente ? 1 : 0, asportabile !== false ? 1 : 0, modalita_stampa || 'singola_multipla']
         );
 
         const voceId = risultato.insertId;
@@ -169,7 +169,7 @@ router.post('/', async (req, res) => {
 
 // POST /api/menu/aggregata - crea pietanza aggregata con componenti
 router.post('/aggregata', async (req, res) => {
-    const { nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo, asportabile, modalita_stampa, componenti } = req.body;
+    const { nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, copia_scontrino_cliente, asportabile, modalita_stampa, componenti } = req.body;
 
     if (!nome || !nome.trim()) {
         return res.status(400).json({ errore: 'Il nome è obbligatorio' });
@@ -186,9 +186,9 @@ router.post('/aggregata', async (req, res) => {
 
         const [risultato] = await conn.query(
             `INSERT INTO voce 
-             (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo, asportabile, modalita_stampa)
+             (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, copia_scontrino_cliente, asportabile, modalita_stampa)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [codice, nome.trim(), prezzo || 0, categoria || null, settore_visualizzazione || null, settore_stampa || null, colore_tasto || '#4A90D9', ordine_schermo || 0, asportabile !== false ? 1 : 0, modalita_stampa || 'singola_multipla']
+            [codice, nome.trim(), prezzo || 0, categoria || null, settore_visualizzazione || null, settore_stampa || null, colore_tasto || '#4A90D9', copia_scontrino_cliente ? 1 : 0, asportabile !== false ? 1 : 0, modalita_stampa || 'singola_multipla']
         );
 
         const voceId = risultato.insertId;
@@ -243,7 +243,7 @@ router.put('/settori/rinomina', async (req, res) => {
 // PUT /api/menu/:id - modifica voce (admin)
 router.put('/:id', async (req, res) => {
     const campi = req.body;
-    const campiConsentiti = ['nome', 'prezzo', 'categoria', 'settore_visualizzazione', 'settore_stampa', 'colore_tasto', 'ordine_schermo', 'visibile', 'asportabile', 'modalita_stampa'];
+    const campiConsentiti = ['nome', 'prezzo', 'categoria', 'settore_visualizzazione', 'settore_stampa', 'colore_tasto', 'copia_scontrino_cliente', 'visibile', 'asportabile', 'modalita_stampa'];
 
     const aggiornamenti = Object.keys(campi)
         .filter(k => campiConsentiti.includes(k))

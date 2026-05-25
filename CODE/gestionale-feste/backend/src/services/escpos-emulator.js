@@ -279,8 +279,18 @@ async function avviaEmulatori(db) {
     const [stampanti] = await db.query(
         `SELECT * FROM stampante WHERE indirizzo_ip = '127.0.0.1' AND attiva = 1`
     )
-    for (const s of stampanti) avviaServerStampante(s)
-    return stampanti.length
+    let avviati = 0
+    for (const s of stampanti) {
+        if (serverPerStampante.has(s.id)) continue
+        avviaServerStampante(s)
+        avviati++
+    }
+    return avviati
+}
+
+// Avvia emulatori per stampanti locali non ancora in ascolto (es. dopo migrazione cassa)
+async function sincronizzaEmulatori(db) {
+    return avviaEmulatori(db)
 }
 
 // Spegne l'emulatore di una stampante (simula guasto: TCP rifiuta connessioni)
@@ -314,6 +324,7 @@ function statoEmulatori() {
 module.exports = {
     setIo,
     avviaEmulatori,
+    sincronizzaEmulatori,
     spegniStampante,
     accendiStampante,
     statoEmulatori,

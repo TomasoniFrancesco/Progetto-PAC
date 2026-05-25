@@ -222,13 +222,18 @@ export default function Admin() {
                                 Stampanti configurate
                             </div>
                             <table className="pietanze-tabella">
-                                <thead><tr><th>Reparto</th><th>Indirizzo IP</th><th>Porta</th><th>Stato</th></tr></thead>
+                                <thead><tr><th>Nome</th><th>Reparto</th><th>Indirizzo IP</th><th>Porta</th><th>Stato</th></tr></thead>
                                 <tbody>
                                     {stampanti.map(s => (
-                                        <tr key={s.id}><td>{s.reparto}</td><td>{s.indirizzo_ip}</td><td>{s.porta}</td><td>{s.stato}</td></tr>
+                                        <tr key={s.id}><td>{s.nome || s.reparto}</td><td>{s.reparto}</td><td>{s.indirizzo_ip}</td><td>{s.porta}</td><td>{s.stato}</td></tr>
                                     ))}
                                 </tbody>
                             </table>
+                            {!stampanti.some(s => s.reparto === 'cassa') && (
+                                <p style={{ marginTop: 12, color: '#930009', fontSize: 13 }}>
+                                    Manca la stampante <strong>cassa</strong> (copia cliente). Riavvia il backend: alla partenza viene creata automaticamente sulla porta 9104.
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -848,7 +853,7 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
         settore_visualizzazione: voce?.settore_visualizzazione || settoreDefault || '',
         settore_stampa: voce?.settore_stampa || '',
         colore_tasto: voce?.colore_tasto || coloreDefaultPerSettore(settoreDefault),
-        ordine_schermo: voce?.ordine_schermo ?? 0,
+        copia_scontrino_cliente: voce ? !!voce.copia_scontrino_cliente : false,
         asportabile: voce ? !!voce.asportabile : true,
         modalita_stampa: voce?.modalita_stampa || 'singola_multipla'
     })
@@ -883,7 +888,7 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
             settore_visualizzazione: form.settore_visualizzazione.trim() || settoreDefault,
             settore_stampa: form.settore_stampa.trim() || null,
             colore_tasto: form.colore_tasto,
-            ordine_schermo: parseInt(form.ordine_schermo) || 0,
+            copia_scontrino_cliente: form.copia_scontrino_cliente ? 1 : 0,
             asportabile: form.asportabile ? 1 : 0,
             modalita_stampa: form.modalita_stampa
         }
@@ -943,16 +948,15 @@ function ModalePietanza({ voce, settoreDefault, categoriaDefault, onChiudi, onSa
                     {mostraAvanzate && (
                         <>
                             <div>
-                                <label className="campo-label">Posizione in cassa</label>
-                                <input className="campo-input" type="number" min="0" value={form.ordine_schermo} onChange={e => aggiornaCampo('ordine_schermo', e.target.value)} />
-                                <span className="campo-hint">Numero più basso = appare prima</span>
-                            </div>
-                            <div>
                                 <label className="campo-label">Stampa comanda</label>
                                 <select className="campo-input" value={form.modalita_stampa} onChange={e => aggiornaCampo('modalita_stampa', e.target.value)}>
                                     <option value="singola_multipla">Raggruppata (es. Risotto ×3)</option>
                                     <option value="singola_singola">Separata (1 riga per porzione)</option>
                                 </select>
+                            </div>
+                            <div className="campo-checkbox-wrap">
+                                <input type="checkbox" id="copia_scontrino_cliente" checked={form.copia_scontrino_cliente} onChange={e => aggiornaCampo('copia_scontrino_cliente', e.target.checked)} />
+                                <label htmlFor="copia_scontrino_cliente">Copia scontrino cliente (stampante cassa)</label>
                             </div>
                             <div className="campo-checkbox-wrap">
                                 <input type="checkbox" id="asportabile" checked={form.asportabile} onChange={e => aggiornaCampo('asportabile', e.target.checked)} />
