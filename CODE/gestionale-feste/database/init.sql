@@ -19,7 +19,7 @@ CREATE TABLE voce (
     settore_visualizzazione VARCHAR(50),
     settore_stampa VARCHAR(50),
     colore_tasto VARCHAR(20) DEFAULT '#4A90D9',
-    ordine_schermo INT DEFAULT 0,
+    copia_scontrino_cliente TINYINT(1) NOT NULL DEFAULT 0,
     visibile TINYINT(1) NOT NULL DEFAULT 1,
     asportabile TINYINT(1) NOT NULL DEFAULT 1,
     modalita_stampa ENUM('singola_singola', 'singola_multipla') DEFAULT 'singola_multipla',
@@ -175,34 +175,34 @@ INSERT INTO utente (username, password_hash, ruolo) VALUES
 ('admin', '$2b$10$placeholder_hash_admin', 'admin'),
 ('cassa1', '$2b$10$placeholder_hash_cassa', 'cassiere');
 
-INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, ordine_schermo) VALUES
-('P001', 'Risotto ai funghi', 9.00, 'Primo', 'Primi', 'cucina', '#E8A838', 3),
-('P002', 'Polenta taragna', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 3),
-('P003', 'Lasagne al forno', 8.50, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
-('P004', 'Pasta al pomodoro', 7.00, 'Primo', 'Primi', 'cucina', '#E8A838',1),
-('P005', 'Gnocchi al ragu', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 2),
-('P006', 'Penne all''arrabbiata', 7.50, 'Primo', 'Primi', 'cucina', '#E8A838', 1),
+INSERT INTO voce (codice, nome, prezzo, categoria, settore_visualizzazione, settore_stampa, colore_tasto, copia_scontrino_cliente) VALUES
+('P001', 'Risotto ai funghi', 9.00, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
+('P002', 'Polenta taragna', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
+('P003', 'Lasagne al forno', 8.50, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
+('P004', 'Pasta al pomodoro', 7.00, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
+('P005', 'Gnocchi al ragu', 8.00, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
+('P006', 'Penne all''arrabbiata', 7.50, 'Primo', 'Primi', 'cucina', '#E8A838', 0),
 
-('S001', 'Costine alla griglia', 12.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),
-('S002', 'Salsiccia alla piastra', 9.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 1),
-('S003', 'Pollo arrosto', 10.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
-('S004', 'Spezzatino', 11.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
-('S005', 'Cotoletta', 9.50, 'Secondo', 'Secondi', 'cucina', '#C0392B', 1),
+('S001', 'Costine alla griglia', 12.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 0),
+('S002', 'Salsiccia alla piastra', 9.00, 'Secondo', 'Secondi', 'griglia', '#C0392B', 0),
+('S003', 'Pollo arrosto', 10.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 0),
+('S004', 'Spezzatino', 11.00, 'Secondo', 'Secondi', 'cucina', '#C0392B', 0),
+('S005', 'Cotoletta', 9.50, 'Secondo', 'Secondi', 'cucina', '#C0392B', 0),
 
-('C001', 'Patatine fritte', 4.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 1),
-('C002', 'Insalata mista', 3.50, 'Contorno', 'Contorni', 'cucina', '#27AE60', 2),
-('C003', 'Verdure grigliate', 5.00, 'Contorno', 'Contorni', 'griglia', '#27AE60', 2),
-('C004', 'Fagioli', 3.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 2),
+('C001', 'Patatine fritte', 4.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 0),
+('C002', 'Insalata mista', 3.50, 'Contorno', 'Contorni', 'cucina', '#27AE60', 0),
+('C003', 'Verdure grigliate', 5.00, 'Contorno', 'Contorni', 'griglia', '#27AE60', 0),
+('C004', 'Fagioli', 3.00, 'Contorno', 'Contorni', 'cucina', '#27AE60', 0),
 
-('B001', 'Birra media', 3.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 3),
+('B001', 'Birra media', 3.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
 ('B002', 'Acqua', 1.00, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
-('B003', 'Cola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 2),
-('B004', 'Aranciata', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 2),
-('B005', 'Vino rosso calice', 3.00, 'Bevanda', 'Bar', 'bar', '#2980B9',3),
-('B006', 'Birra piccola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 3),
+('B003', 'Cola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
+('B004', 'Aranciata', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
+('B005', 'Vino rosso calice', 3.00, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
+('B006', 'Birra piccola', 2.50, 'Bevanda', 'Bar', 'bar', '#2980B9', 1),
 
 ('D001', 'Tiramisu', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1),
-('D002', 'Crostata', 4.00, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 2),
+('D002', 'Crostata', 4.00, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1),
 ('D003', 'Gelato coppetta', 3.50, 'Dolce', 'Dolci', 'bar', '#8E44AD', 1),
 ('D004', 'Panna cotta', 4.50, 'Dolce', 'Dolci', 'cucina', '#8E44AD', 1);
 
@@ -225,4 +225,5 @@ INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello) VALUES
 ('cucina', 'Cucina A', '127.0.0.1', 9100, 'EPSON'),
 ('cucina_2', 'Cucina B', '127.0.0.1', 9103, 'EPSON'),
 ('bar', 'Stampante Bar', '127.0.0.1', 9101, 'EPSON'),
-('griglia', 'Stampante Griglia', '127.0.0.1', 9102, 'EPSON');
+('griglia', 'Stampante Griglia', '127.0.0.1', 9102, 'EPSON'),
+('cassa', 'Stampante Cassa', '127.0.0.1', 9104, 'EPSON');

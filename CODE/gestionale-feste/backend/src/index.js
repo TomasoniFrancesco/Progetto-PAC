@@ -258,6 +258,58 @@ async function avviaServer() {
                 console.log('Migrazione cucina_2:', errMigrazione.message);
             }
 
+            // Migrazione: rimuove ordine_schermo (ordinamento alfabetico in cassa)
+            try {
+                const [colsOrdine] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce' AND COLUMN_NAME = 'ordine_schermo'`
+                );
+                if (colsOrdine.length > 0) {
+                    await db.query('ALTER TABLE voce DROP COLUMN ordine_schermo');
+                    console.log('Migrazione voce: colonna ordine_schermo rimossa');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione ordine_schermo:', errMigrazione.message);
+            }
+
+            // Migrazione: copia scontrino cliente su voce
+            try {
+                const [colsCopia] = await db.query(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'voce' AND COLUMN_NAME = 'copia_scontrino_cliente'`
+                );
+                if (colsCopia.length === 0) {
+                    await db.query('ALTER TABLE voce ADD COLUMN copia_scontrino_cliente TINYINT(1) NOT NULL DEFAULT 0');
+                    console.log('Migrazione voce: colonna copia_scontrino_cliente aggiunta');
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione copia_scontrino_cliente:', errMigrazione.message);
+            }
+
+            // Migrazione: stampante cassa (copia cliente)
+            try {
+                const [cassa] = await db.query(`SELECT id FROM stampante WHERE reparto = 'cassa'`);
+                if (cassa.length === 0) {
+                    await db.query(
+                        `INSERT INTO stampante (reparto, nome, indirizzo_ip, porta, modello, primaria, attiva)
+                         VALUES ('cassa', 'Stampante Cassa', '127.0.0.1', 9104, 'EPSON', 1, 1)`
+                    );
+                    console.log('Migrazione stampante: cassa aggiunta (porta 9104)');
+                } else {
+                    await db.query(
+                        `UPDATE stampante
+                         SET nome = COALESCE(NULLIF(nome, ''), 'Stampante Cassa'),
+                             indirizzo_ip = '127.0.0.1',
+                             porta = 9104,
+                             primaria = 1,
+                             attiva = 1
+                         WHERE reparto = 'cassa'`
+                    );
+                }
+            } catch (errMigrazione) {
+                console.log('Migrazione stampante cassa:', errMigrazione.message);
+            }
+
             // Migrazione: crea tabella stampa_eseguita (audit log delle stampe)
             try {
                 await db.query(`
@@ -307,7 +359,10 @@ async function avviaServer() {
             if (process.env.EMULATORE_ATTIVO !== '0') {
                 try {
                     const n = await emulatore.avviaEmulatori(db);
-                    console.log(`Emulatore ESC/POS: ${n} stampanti virtuali in ascolto`);
+                    const [lista] = await db.query(
+                        `SELECT reparto, nome, porta FROM stampante ORDER BY porta`
+                    );
+                    console.log(`Emulatore ESC/POS: ${n} listener avviati — stampanti: ${lista.map(s => `${s.reparto}(:${s.porta})`).join(', ')}`);
                 } catch (errEmu) {
                     console.log('Avvio emulatori:', errEmu.message);
                 }

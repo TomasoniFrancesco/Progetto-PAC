@@ -68,7 +68,7 @@
 - [x] Gestione modalità "stampa singola quantità singola" (N biglietti per N porzioni)
 - [x] Gestione modalità "stampa singola quantità multipla" (1 biglietto con totale)
 - [x] Gestione modalità "stampa doppia copia"
-- [ ] Generazione "copia cliente" su stampante cassa per prodotti con flag `copia_scontrino_cliente`
+- [x] Generazione "copia cliente" su stampante cassa per prodotti con flag `copia_scontrino_cliente`
 
 ---
 

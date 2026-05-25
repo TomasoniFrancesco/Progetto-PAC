@@ -142,6 +142,49 @@ async function inviaComanda(comanda, opzioni = {}) {
     return { ok: true, durata_ms: durataTotale, pagine: pagine.length }
 }
 
+// Copia cliente: scontrino riepilogativo su stampante reparto cassa
+async function inviaCopiaCliente(dati) {
+    const reparto = 'cassa'
+    const ordine_id = dati.ordine_id
+
+    const stampante = await risolviStampantePrimaria(reparto)
+    if (!stampante) {
+        await logStampa({ ordine_id, reparto, payload: dati, esito: 'no_stampante', errore: `Nessuna stampante primaria attiva per il reparto ${reparto}` })
+        emit('stampa_fallita', { ordine_id, reparto, motivo: 'no_stampante' })
+        return { ok: false, motivo: 'no_stampante' }
+    }
+
+    let buffer
+    try {
+        buffer = await formatter.formattaCopiaCliente(dati, { modello: stampante.modello })
+    } catch (err) {
+        await logStampa({ ordine_id, stampante_id: stampante.id, reparto, payload: dati, esito: 'errore', errore: `Formattazione fallita: ${err.message}` })
+        emit('stampa_fallita', { ordine_id, reparto, motivo: 'formattazione', errore: err.message })
+        return { ok: false, motivo: 'formattazione' }
+    }
+
+    const ris = await inviaBuffer(stampante, buffer)
+    if (!ris.ok) {
+        try {
+            await db.query("UPDATE stampante SET stato='offline' WHERE id=?", [stampante.id])
+        } catch {}
+        smistatore.setStatoStampante(reparto, 'offline')
+        emit('stampante_offline', { reparto, stampante_id: stampante.id, errore: ris.errore })
+        await logStampa({ ordine_id, stampante_id: stampante.id, reparto, payload: dati, esito: 'errore', errore: `${ris.codice}: ${ris.errore}`, durata_ms: ris.durata_ms })
+        emit('stampa_fallita', { ordine_id, reparto, motivo: 'tcp', codice: ris.codice, errore: ris.errore })
+        return { ok: false, motivo: 'tcp', codice: ris.codice }
+    }
+
+    try {
+        await db.query("UPDATE stampante SET stato='online' WHERE id=? AND stato!='online'", [stampante.id])
+    } catch {}
+    smistatore.setStatoStampante(reparto, 'online')
+
+    await logStampa({ ordine_id, stampante_id: stampante.id, reparto, payload: dati, esito: 'ok', durata_ms: ris.durata_ms })
+    emit('comanda_stampata', { ordine_id, reparto, stampante_id: stampante.id, durata_ms: ris.durata_ms, pagine: 1, tipo: 'copia_cliente' })
+    return { ok: true, durata_ms: ris.durata_ms, pagine: 1 }
+}
+
 // Pagina di test per una stampante specifica (utile dall'UI admin)
 async function stampaTestPage(stampante_id) {
     const [righe] = await db.query('SELECT * FROM stampante WHERE id = ?', [stampante_id])
@@ -163,5 +206,6 @@ async function stampaTestPage(stampante_id) {
 module.exports = {
     setIo,
     inviaComanda,
+    inviaCopiaCliente,
     stampaTestPage,
 }

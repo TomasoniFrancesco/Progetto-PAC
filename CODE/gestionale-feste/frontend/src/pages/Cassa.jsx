@@ -121,7 +121,8 @@ export default function Cassa() {
         ? (scontoTipo === 'percentuale' ? totale * (scontoNum / 100) : Math.min(scontoNum, totale))
         : 0
     const totaleNetto = totale - scontoImporto
-    const resto = importoPagato ? (parseFloat(importoPagato) - totaleNetto).toFixed(2) : null
+    const importoPagatoValido = importoPagato !== '' && Number.isFinite(parseFloat(importoPagato)) && parseFloat(importoPagato) > 0
+    const resto = importoPagatoValido ? (parseFloat(importoPagato) - totaleNetto).toFixed(2) : null
 
     const vociStockLimitato = voci
         .filter(v => { const s = scorteMap[v.id]; return s?.attiva && (s.quantita === 0 || s.stato_visivo === 'critico' || s.stato_visivo === 'attenzione') })
@@ -237,6 +238,10 @@ export default function Cassa() {
 
     async function confermaOrdine() {
         if (!righe.length) return
+        if (!importoPagatoValido) {
+            mostraPopup('✗ Inserire l\'importo pagato', 'error')
+            return
+        }
         try {
             const { id } = await (await fetch(`${API}/ordini`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -463,7 +468,7 @@ export default function Cassa() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <div onClick={() => { setImportoTemp(importoPagato); setModaleTastierino(true); }}
-                                    style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.outline}`, background: C.surfaceLowest, color: importoPagato ? C.onSurface : '#aaa', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                                    style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${righe.length && !importoPagatoValido ? C.tertiary : C.outline}`, background: C.surfaceLowest, color: importoPagatoValido ? C.onSurface : '#aaa', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
                                     <span>{importoPagato ? `€ ${importoPagato}` : 'Importo pagato (€)'}</span>
                                     <span style={{ fontSize: 18, opacity: 0.7 }}>⌨️</span>
                                 </div>
@@ -474,8 +479,8 @@ export default function Cassa() {
                                 )}
                             </div>
 
-                            <button onClick={confermaOrdine} disabled={!righe.length}
-                                style={{ width: '100%', padding: '16px', background: righe.length ? `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})` : C.surfaceHigh, color: righe.length ? '#fff' : C.onSurfaceVariant, border: 'none', borderRadius: 10, fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 16, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: righe.length ? 'pointer' : 'default', boxShadow: righe.length ? '0 4px 16px rgba(0,81,71,0.2)' : 'none', transition: 'all 0.15s' }}>
+                            <button onClick={confermaOrdine} disabled={!righe.length || !importoPagatoValido}
+                                style={{ width: '100%', padding: '16px', background: righe.length && importoPagatoValido ? `linear-gradient(135deg, ${C.primary}, ${C.primaryContainer})` : C.surfaceHigh, color: righe.length && importoPagatoValido ? '#fff' : C.onSurfaceVariant, border: 'none', borderRadius: 10, fontFamily: 'Public Sans, sans-serif', fontWeight: 900, fontSize: 16, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: righe.length && importoPagatoValido ? 'pointer' : 'default', boxShadow: righe.length && importoPagatoValido ? '0 4px 16px rgba(0,81,71,0.2)' : 'none', transition: 'all 0.15s' }}>
                                 CONFERMA ORDINE ✓
                             </button>
                         </div>

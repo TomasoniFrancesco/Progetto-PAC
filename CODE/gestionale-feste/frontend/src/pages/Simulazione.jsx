@@ -62,6 +62,7 @@ export default function Simulazione() {
         try {
             const res = await fetch(`${API}/stampanti`)
             const dati = await res.json()
+            dati.sort((a, b) => (a.porta || 0) - (b.porta || 0))
             setStampanti(dati)
         } catch (err) { console.error('Errore stampanti', err) }
     }
@@ -112,14 +113,26 @@ export default function Simulazione() {
                     <h1 style={{ margin: 0, fontFamily: 'Public Sans, sans-serif', fontSize: 20, fontWeight: 900 }}>🖨 Simulazione Stampanti</h1>
                     <p style={{ margin: '2px 0 0', fontSize: 12, opacity: 0.85 }}>Una colonna per stampante fisica — gli scontrini arrivano in tempo reale</p>
                 </div>
-                <a href="/cassa" style={{ color: '#fff', textDecoration: 'none', padding: '8px 14px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>← Torna alla Cassa</a>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button type="button" onClick={() => { caricaStampanti(); caricaStatoEmulatori() }}
+                        style={{ color: '#fff', border: 'none', padding: '8px 14px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                        ↻ Aggiorna
+                    </button>
+                    <a href="/cassa" style={{ color: '#fff', textDecoration: 'none', padding: '8px 14px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>← Torna alla Cassa</a>
+                </div>
             </header>
 
             {/* Colonne stampanti */}
             <main style={{ flex: 1, display: 'flex', gap: 14, padding: 14, overflowX: 'auto', overflowY: 'hidden' }}>
                 {stampanti.length === 0 && (
                     <div style={{ width: '100%', textAlign: 'center', color: C.onSurfaceVariant, marginTop: 60 }}>
-                        Nessuna stampante configurata.
+                        Nessuna stampante configurata.<br />
+                        <span style={{ fontSize: 12 }}>Riavvia il backend: alla partenza viene creata anche la stampante <strong>cassa</strong> (porta 9104).</span>
+                    </div>
+                )}
+                {stampanti.length > 0 && !stampanti.some(s => s.reparto === 'cassa') && (
+                    <div style={{ flex: '0 0 280px', padding: 16, background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, color: '#664d03', fontSize: 13, alignSelf: 'flex-start' }}>
+                        <strong>Stampante cassa assente.</strong> Riavvia il backend Node: la migrazione la aggiunge al database. Poi clicca ↻ Aggiorna.
                     </div>
                 )}
                 {stampanti.map(stampante => (
