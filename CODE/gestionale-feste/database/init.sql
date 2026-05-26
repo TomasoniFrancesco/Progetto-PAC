@@ -215,7 +215,64 @@ INSERT INTO configurazione (chiave, valore) VALUES
 INSERT INTO allergene (nome, descr) VALUES
 ('Glutine', 'Cereali contenenti glutine'),
 ('Lattosio', 'Latte e derivati'),
-('Frutta a guscio', 'Noci, mandorle, nocciole');
+('Frutta a guscio', 'Noci, mandorle, nocciole'),
+('Uova', 'Uova e derivati'),
+('Solfiti', 'Anidride solforosa e solfiti'),
+('Sedano', 'Sedano e derivati');
+
+-- Associazioni voce <-> allergene
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P002' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P003' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P003' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P003' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P004' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P004' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P005' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P005' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P006' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'P006' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'S005' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'S005' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'S005' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'B005' AND a.nome = 'Solfiti';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D001' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D001' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D001' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D002' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D002' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D002' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D003' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D003' AND a.nome = 'Uova';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D003' AND a.nome = 'Frutta a guscio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'D004' AND a.nome = 'Lattosio';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'B001' AND a.nome = 'Glutine';
+INSERT INTO voce_allergene (voce_id, allergene_id)
+SELECT v.id, a.id FROM voce v, allergene a WHERE v.codice = 'B006' AND a.nome = 'Glutine';
 
 -- Stampanti: configurate per emulatore TCP locale (modalità demo).
 -- Per produzione con hardware reale, aggiornare indirizzo_ip/porta.
