@@ -1,0 +1,18 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<title>Refactoring — confronto metriche Prima/Dopo</title>
+<style>
+ body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f9;color:#2b2f36;margin:0;padding:32px}
+ h1{font-size:26px;margin:0 0 4px}.sub{color:#6b7280;margin:0 0 24px}
+ .chart{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:22px;overflow-x:auto}
+ .note{background:#fff7e6;border-left:4px solid #E8B84B;padding:12px 16px;border-radius:6px;font-size:14px;line-height:1.5;margin-bottom:22px}
+ code{background:#eef1f5;padding:1px 5px;border-radius:4px}
+</style></head><body>
+<h1>Refactoring — confronto metriche Prima / Dopo</h1>
+<p class="sub">Fonte: ESLint (complexity), madge, analisi SLOC/AST · 2026-06-02</p>
+<div class="note"><b>Nota su LCOM.</b> La metrica classica LCOM (coesione di classe) non è significativa per questo
+codice funzionale/React: misurata risulta piatta (media 1,45 → 1,45) e penalizza persino i repository ben fattorizzati.
+La coesione è quindi rappresentata dalla <b>decomposizione dei moduli</b> (responsabilità singola, dimensione dei file).</div>
+<div class="chart"><img src="01-complessita.svg" alt="Complessità prima/dopo"></div>
+<div class="chart"><img src="02-accoppiamento.svg" alt="Accoppiamento prima/dopo"></div>
+<div class="chart"><img src="03-coesione.svg" alt="Coesione prima/dopo"></div>
+</body></html>

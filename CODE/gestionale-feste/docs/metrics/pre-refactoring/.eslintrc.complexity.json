@@ -1,0 +1,6 @@
+{
+  "root": true,
+  "parserOptions": { "ecmaVersion": "latest", "sourceType": "module", "ecmaFeatures": { "jsx": true } },
+  "env": { "browser": true, "node": true, "es2022": true },
+  "rules": { "complexity": ["warn", 0] }
+}

@@ -358,7 +358,7 @@ async function avviaServer() {
             // Disabilitabile con EMULATORE_ATTIVO=0 in produzione con hardware reale.
             if (process.env.EMULATORE_ATTIVO !== '0') {
                 try {
-                    const n = await emulatore.avviaEmulatori(db);
+                    const n = await emulatore.avviaEmulatori();
                     const [lista] = await db.query(
                         `SELECT reparto, nome, porta FROM stampante ORDER BY porta`
                     );

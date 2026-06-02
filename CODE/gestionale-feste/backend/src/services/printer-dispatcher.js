@@ -6,9 +6,10 @@
 // in produzione. Cambia solo il record nella tabella stampante.
 
 const net = require('net')
-const db = require('../db')
 const formatter = require('./formatter')
 const smistatore = require('./smistatore')
+const stampanteRepo = require('../repositories/stampante.repo')
+const stampaRepo = require('../repositories/stampa.repo')
 
 const TIMEOUT_TCP_MS = 5000
 let ioRef = null
@@ -63,22 +64,12 @@ function inviaBuffer(stampante, buffer) {
 }
 
 async function risolviStampantePrimaria(reparto) {
-    const [righe] = await db.query(
-        `SELECT * FROM stampante
-         WHERE reparto = ? AND primaria = 1 AND attiva = 1
-         ORDER BY id ASC LIMIT 1`,
-        [reparto]
-    )
-    return righe[0] || null
+    return stampanteRepo.trovaPrimariaAttiva(reparto)
 }
 
-async function logStampa({ ordine_id, stampante_id, reparto, payload, esito, errore, durata_ms }) {
+async function logStampa(dati) {
     try {
-        await db.query(
-            `INSERT INTO stampa_eseguita (ordine_id, stampante_id, reparto, payload, esito, errore, durata_ms)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [ordine_id, stampante_id || null, reparto, JSON.stringify(payload || null), esito, errore || null, durata_ms || null]
-        )
+        await stampaRepo.registra(dati)
     } catch (err) {
         console.error('logStampa errore:', err.message)
     }
@@ -120,7 +111,7 @@ async function inviaComanda(comanda, opzioni = {}) {
         if (!ris.ok) {
             // Marca stampante offline
             try {
-                await db.query("UPDATE stampante SET stato='offline' WHERE id=?", [stampante.id])
+                await stampanteRepo.impostaStato(stampante.id, 'offline')
             } catch {}
             smistatore.setStatoStampante(reparto, 'offline')
             emit('stampante_offline', { reparto, stampante_id: stampante.id, errore: ris.errore })
@@ -133,7 +124,7 @@ async function inviaComanda(comanda, opzioni = {}) {
 
     // Successo: assicurati che lo stato sia online (potrebbe essere stato spento prima)
     try {
-        await db.query("UPDATE stampante SET stato='online' WHERE id=? AND stato!='online'", [stampante.id])
+        await stampanteRepo.impostaStatoSeDiverso(stampante.id, 'online')
     } catch {}
     smistatore.setStatoStampante(reparto, 'online')
 
@@ -166,7 +157,7 @@ async function inviaCopiaCliente(dati) {
     const ris = await inviaBuffer(stampante, buffer)
     if (!ris.ok) {
         try {
-            await db.query("UPDATE stampante SET stato='offline' WHERE id=?", [stampante.id])
+            await stampanteRepo.impostaStato(stampante.id, 'offline')
         } catch {}
         smistatore.setStatoStampante(reparto, 'offline')
         emit('stampante_offline', { reparto, stampante_id: stampante.id, errore: ris.errore })
@@ -176,7 +167,7 @@ async function inviaCopiaCliente(dati) {
     }
 
     try {
-        await db.query("UPDATE stampante SET stato='online' WHERE id=? AND stato!='online'", [stampante.id])
+        await stampanteRepo.impostaStatoSeDiverso(stampante.id, 'online')
     } catch {}
     smistatore.setStatoStampante(reparto, 'online')
 
@@ -187,8 +178,7 @@ async function inviaCopiaCliente(dati) {
 
 // Pagina di test per una stampante specifica (utile dall'UI admin)
 async function stampaTestPage(stampante_id) {
-    const [righe] = await db.query('SELECT * FROM stampante WHERE id = ?', [stampante_id])
-    const stampante = righe[0]
+    const stampante = await stampanteRepo.trovaPerId(stampante_id)
     if (!stampante) return { ok: false, motivo: 'stampante_inesistente' }
 
     const pagine = await formatter.pagineDiTest(stampante)

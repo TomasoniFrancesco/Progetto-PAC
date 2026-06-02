@@ -9,6 +9,7 @@
 
 const net = require('net')
 const iconv = require('iconv-lite')
+const stampanteRepo = require('../repositories/stampante.repo')
 
 // Mappa stampante_id → { server, stampante }
 const serverPerStampante = new Map()
@@ -54,154 +55,153 @@ function stiliDaStato(s) {
     return stili
 }
 
+// Dispatch dei comandi ESC (0x1B). Ogni handler riceve (buffer, i, ctx) e
+// ritorna il nuovo indice i. Se mancano i byte del parametro si comporta come
+// l'originale: il comando viene saltato avanzando di 2 byte.
+// ctx = { scontrini, scontrino, stato, rigaCorrente } — gli handler possono
+// riassegnare ctx.stato / ctx.scontrino (per questo si usa un contenitore).
+const ESC_HANDLERS = {
+    // ESC @ → reset
+    0x40: (buffer, i, ctx) => {
+        ctx.stato = nuovoStato()
+        ctx.rigaCorrente.statoIniziale = copiaStato(ctx.stato)
+        return i + 2
+    },
+    // ESC a n → allineamento (si applica alla riga corrente)
+    0x61: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        const n = buffer[i + 2]
+        ctx.stato.allineamento = n === 1 ? 'center' : n === 2 ? 'right' : 'left'
+        ctx.rigaCorrente.statoIniziale.allineamento = ctx.stato.allineamento
+        return i + 3
+    },
+    // ESC ! n → print mode (font + bold + size)
+    0x21: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        const n = buffer[i + 2]
+        ctx.stato.bold = (n & 0x08) !== 0
+        ctx.stato.doppia_altezza = (n & 0x10) !== 0
+        ctx.stato.doppia_larghezza = (n & 0x20) !== 0
+        ctx.stato.sottolineato = (n & 0x80) !== 0
+        ctx.rigaCorrente.statoIniziale = copiaStato(ctx.stato)
+        return i + 3
+    },
+    // ESC E n → bold on/off
+    0x45: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        ctx.stato.bold = buffer[i + 2] !== 0
+        ctx.rigaCorrente.statoIniziale.bold = ctx.stato.bold
+        return i + 3
+    },
+    // ESC - n → underline
+    0x2d: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        ctx.stato.sottolineato = buffer[i + 2] !== 0
+        ctx.rigaCorrente.statoIniziale.sottolineato = ctx.stato.sottolineato
+        return i + 3
+    },
+    // ESC t n → set code page (ignorato, usiamo CP858 fisso)
+    0x74: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+    // ESC R n → international char set (ignorato)
+    0x52: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+    // ESC 2 → spaziatura riga di default (ignorato, nessun parametro)
+    0x32: (buffer, i) => i + 2,
+    // ESC 3 n → spaziatura riga (ignorato)
+    0x33: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+    // ESC d n → feed n lines
+    0x64: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        const n = buffer[i + 2]
+        for (let k = 0; k < n; k++) chiudiRiga(ctx.rigaCorrente, ctx.stato, ctx.scontrino)
+        return i + 3
+    },
+    // ESC J n → print and feed n dots (ignorato come line feed singolo)
+    0x4a: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+}
+
+// Dispatch dei comandi GS (0x1D). Stessa convenzione di ESC_HANDLERS.
+const GS_HANDLERS = {
+    // GS V m / GS V m n → taglio carta: flush riga e chiude lo scontrino corrente
+    0x56: (buffer, i, ctx) => {
+        const m = buffer[i + 2]
+        // Forme: GS V m (1 param) o GS V m n (2 param, con offset)
+        const nuovoI = (m === 0x41 || m === 0x42 || m === 0x61 || m === 0x62) ? i + 4 : i + 3
+        if (ctx.rigaCorrente.bytes.length > 0) chiudiRiga(ctx.rigaCorrente, ctx.stato, ctx.scontrino)
+        if (ctx.scontrino.righe.length > 0) {
+            ctx.scontrini.push(ctx.scontrino)
+            ctx.scontrino = { righe: [] }
+        }
+        return nuovoI
+    },
+    // GS ! n → set character size
+    0x21: (buffer, i, ctx) => {
+        if (i + 2 >= buffer.length) return i + 2
+        const n = buffer[i + 2]
+        const width = (n >> 4) & 0x0f
+        const height = n & 0x0f
+        ctx.stato.doppia_larghezza = width >= 1
+        ctx.stato.doppia_altezza = height >= 1
+        ctx.rigaCorrente.statoIniziale = copiaStato(ctx.stato)
+        return i + 3
+    },
+    // GS B n → reverse mode (ignorato)
+    0x42: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+    // GS L nL nH → left margin (ignorato)
+    0x4c: (buffer, i) => (i + 3 < buffer.length ? i + 4 : i + 2),
+    // GS W nL nH → print area width (ignorato)
+    0x57: (buffer, i) => (i + 3 < buffer.length ? i + 4 : i + 2),
+    // GS r n → status (ignorato)
+    0x72: (buffer, i) => (i + 2 < buffer.length ? i + 3 : i + 2),
+}
+
+// ESC/GS sconosciuto: skip 2 byte e prosegui (come l'originale).
+function gestisciEsc(buffer, i, ctx) {
+    const handler = ESC_HANDLERS[buffer[i + 1]]
+    return handler ? handler(buffer, i, ctx) : i + 2
+}
+function gestisciGs(buffer, i, ctx) {
+    const handler = GS_HANDLERS[buffer[i + 1]]
+    return handler ? handler(buffer, i, ctx) : i + 2
+}
+
 // Parsa un flusso di byte ESC/POS in una lista di scontrini.
-// Ritorna { scontrini: [...], avanzo: Buffer rimasto (incompleto) }
+// Ritorna { scontrini: [...], scontrinoParziale: ... rimasto (incompleto) }
 function parsaFlusso(buffer) {
     const scontrini = []
-    let scontrino = { righe: [] }
-    let stato = nuovoStato()
-    let rigaCorrente = { bytes: [], statoIniziale: copiaStato(stato) }
+    const ctx = {
+        scontrini,
+        scontrino: { righe: [] },
+        stato: nuovoStato(),
+        rigaCorrente: null,
+    }
+    ctx.rigaCorrente = { bytes: [], statoIniziale: copiaStato(ctx.stato) }
 
     let i = 0
     while (i < buffer.length) {
         const b = buffer[i]
 
-        // LF: nuova riga
-        if (b === 0x0a) {
-            chiudiRiga(rigaCorrente, stato, scontrino)
+        if (b === 0x0a) {                                 // LF: nuova riga
+            chiudiRiga(ctx.rigaCorrente, ctx.stato, ctx.scontrino)
             i++
-            continue
-        }
-        // CR: ignorato
-        if (b === 0x0d) { i++; continue }
-
-        // ESC (0x1B) ...
-        if (b === 0x1b && i + 1 < buffer.length) {
-            const cmd = buffer[i + 1]
-
-            // ESC @ → reset
-            if (cmd === 0x40) {
-                stato = nuovoStato()
-                rigaCorrente.statoIniziale = copiaStato(stato)
-                i += 2
-                continue
-            }
-            // ESC a n → allineamento
-            if (cmd === 0x61 && i + 2 < buffer.length) {
-                const n = buffer[i + 2]
-                stato.allineamento = n === 1 ? 'center' : n === 2 ? 'right' : 'left'
-                // L'allineamento si applica alla riga corrente
-                rigaCorrente.statoIniziale.allineamento = stato.allineamento
-                i += 3
-                continue
-            }
-            // ESC ! n → print mode (font + bold + size)
-            if (cmd === 0x21 && i + 2 < buffer.length) {
-                const n = buffer[i + 2]
-                stato.bold = (n & 0x08) !== 0
-                stato.doppia_altezza = (n & 0x10) !== 0
-                stato.doppia_larghezza = (n & 0x20) !== 0
-                stato.sottolineato = (n & 0x80) !== 0
-                rigaCorrente.statoIniziale = copiaStato(stato)
-                i += 3
-                continue
-            }
-            // ESC E n → bold on/off
-            if (cmd === 0x45 && i + 2 < buffer.length) {
-                stato.bold = buffer[i + 2] !== 0
-                rigaCorrente.statoIniziale.bold = stato.bold
-                i += 3
-                continue
-            }
-            // ESC - n → underline
-            if (cmd === 0x2d && i + 2 < buffer.length) {
-                stato.sottolineato = buffer[i + 2] !== 0
-                rigaCorrente.statoIniziale.sottolineato = stato.sottolineato
-                i += 3
-                continue
-            }
-            // ESC t n → set code page (ignorato, usiamo CP858 fisso)
-            if (cmd === 0x74 && i + 2 < buffer.length) { i += 3; continue }
-            // ESC R n → international char set (ignorato)
-            if (cmd === 0x52 && i + 2 < buffer.length) { i += 3; continue }
-            // ESC 2 / ESC 3 → spaziatura riga (ignorato)
-            if (cmd === 0x32) { i += 2; continue }
-            if (cmd === 0x33 && i + 2 < buffer.length) { i += 3; continue }
-            // ESC d n → feed n lines
-            if (cmd === 0x64 && i + 2 < buffer.length) {
-                const n = buffer[i + 2]
-                for (let k = 0; k < n; k++) chiudiRiga(rigaCorrente, stato, scontrino)
-                i += 3
-                continue
-            }
-            // ESC J n → print and feed n dots (ignorato come line feed singolo)
-            if (cmd === 0x4a && i + 2 < buffer.length) { i += 3; continue }
-            // Comando ESC sconosciuto: skip 2 byte e prosegui
-            i += 2
-            continue
-        }
-
-        // GS (0x1D) ...
-        if (b === 0x1d && i + 1 < buffer.length) {
-            const cmd = buffer[i + 1]
-            // GS V n / GS V m n → taglio carta
-            if (cmd === 0x56) {
-                // Forme: GS V m (1 param) o GS V m n (2 param)
-                const m = buffer[i + 2]
-                if (m === 0x41 || m === 0x42 || m === 0x61 || m === 0x62) {
-                    i += 4  // forma con offset
-                } else {
-                    i += 3
-                }
-                // Flush della riga corrente se ha contenuto, poi chiudi scontrino
-                if (rigaCorrente.bytes.length > 0) chiudiRiga(rigaCorrente, stato, scontrino)
-                if (scontrino.righe.length > 0) {
-                    scontrini.push(scontrino)
-                    scontrino = { righe: [] }
-                }
-                continue
-            }
-            // GS ! n → set character size
-            if (cmd === 0x21 && i + 2 < buffer.length) {
-                const n = buffer[i + 2]
-                const width = (n >> 4) & 0x0f
-                const height = n & 0x0f
-                stato.doppia_larghezza = width >= 1
-                stato.doppia_altezza = height >= 1
-                rigaCorrente.statoIniziale = copiaStato(stato)
-                i += 3
-                continue
-            }
-            // GS B n → reverse mode (ignorato)
-            if (cmd === 0x42 && i + 2 < buffer.length) { i += 3; continue }
-            // GS L nL nH → left margin (ignorato)
-            if (cmd === 0x4c && i + 3 < buffer.length) { i += 4; continue }
-            // GS W nL nH → print area width (ignorato)
-            if (cmd === 0x57 && i + 3 < buffer.length) { i += 4; continue }
-            // GS r n → status (ignorato)
-            if (cmd === 0x72 && i + 2 < buffer.length) { i += 3; continue }
-            // GS sconosciuto: skip 2
-            i += 2
-            continue
-        }
-
-        // FS (0x1C) - prefisso comandi internazionali (ignoro 2 byte)
-        if (b === 0x1c && i + 1 < buffer.length) {
-            // FS ! n / FS p n m / FS C n etc. — skip 3 conservativamente
+        } else if (b === 0x0d) {                          // CR: ignorato
+            i++
+        } else if (b === 0x1b && i + 1 < buffer.length) { // ESC ...
+            i = gestisciEsc(buffer, i, ctx)
+        } else if (b === 0x1d && i + 1 < buffer.length) { // GS ...
+            i = gestisciGs(buffer, i, ctx)
+        } else if (b === 0x1c && i + 1 < buffer.length) { // FS: skip 3 conservativi
             i += 3
-            continue
+        } else {                                          // testo stampabile
+            ctx.rigaCorrente.bytes.push(Buffer.from([b]))
+            i++
         }
-
-        // Byte stampabile o testo: accumula nella riga corrente
-        rigaCorrente.bytes.push(Buffer.from([b]))
-        i++
     }
 
     // Flush eventuale riga residua come scontrino "incompleto" — gestito dal chiamante
-    if (rigaCorrente.bytes.length > 0) {
-        chiudiRiga(rigaCorrente, stato, scontrino)
+    if (ctx.rigaCorrente.bytes.length > 0) {
+        chiudiRiga(ctx.rigaCorrente, ctx.stato, ctx.scontrino)
     }
-    return { scontrini, scontrinoParziale: scontrino }
+    return { scontrini, scontrinoParziale: ctx.scontrino }
 }
 
 // ─── Server TCP per singola stampante ────────────────────────────────────────
@@ -275,10 +275,8 @@ function fermaServerStampante(stampante_id) {
 }
 
 // ─── API pubblica ────────────────────────────────────────────────────────────
-async function avviaEmulatori(db) {
-    const [stampanti] = await db.query(
-        `SELECT * FROM stampante WHERE indirizzo_ip = '127.0.0.1' AND attiva = 1`
-    )
+async function avviaEmulatori() {
+    const stampanti = await stampanteRepo.elencaLocaliAttive()
     let avviati = 0
     for (const s of stampanti) {
         if (serverPerStampante.has(s.id)) continue
@@ -289,8 +287,8 @@ async function avviaEmulatori(db) {
 }
 
 // Avvia emulatori per stampanti locali non ancora in ascolto (es. dopo migrazione cassa)
-async function sincronizzaEmulatori(db) {
-    return avviaEmulatori(db)
+async function sincronizzaEmulatori() {
+    return avviaEmulatori()
 }
 
 // Spegne l'emulatore di una stampante (simula guasto: TCP rifiuta connessioni)
@@ -299,11 +297,11 @@ async function spegniStampante(stampante_id) {
 }
 
 // Riaccende l'emulatore
-async function accendiStampante(stampante_id, db) {
+async function accendiStampante(stampante_id) {
     if (serverPerStampante.has(stampante_id)) return true
-    const [righe] = await db.query('SELECT * FROM stampante WHERE id = ?', [stampante_id])
-    if (!righe[0]) return false
-    avviaServerStampante(righe[0])
+    const stampante = await stampanteRepo.trovaPerId(stampante_id)
+    if (!stampante) return false
+    avviaServerStampante(stampante)
     return true
 }
 
