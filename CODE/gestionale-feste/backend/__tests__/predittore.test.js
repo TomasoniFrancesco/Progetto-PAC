@@ -12,8 +12,14 @@
 //   - tempoResiduoEventoSec
 //   - derivaStatoVisivo
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import predittore from '../src/services/predittore.js'
+
+const configurazioneRepo = require('../src/repositories/configurazione.repo.js')
+const predittoreRepo = require('../src/repositories/predittore.repo.js')
+
+// I mock per il database verranno applicati tramite vi.spyOn nel describe dedicato
+
 
 const { _interno } = predittore
 
@@ -256,5 +262,84 @@ describe('valutaVoce: pipeline completa', () => {
     }
     const r = _interno.valutaVoce(voce, contesto)
     expect(r.stato).toBe('esaurito')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// eseguiPredizione (test del flow principale con mocking del DB)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('eseguiPredizione (mock database)', () => {
+  it('calcola la predizione aggregando i dati dal mock del repository', async () => {
+    vi.spyOn(configurazioneRepo, 'leggiMappa').mockResolvedValue({
+      evento_fine_oggi: '23:30',
+      soglia_warn_urgenza: '300',
+      giorni_storico: '30'
+    })
+    vi.spyOn(predittoreRepo, 'elencaVociAttive').mockResolvedValue([
+      { id: 1, nome: 'Acqua', quantita: 5, attiva: true, tempo_riapprovvigionamento: 600, settore_stampa: 'bar', priorita_voce: 'media', soglia_rosso: 2, soglia_giallo: 10 }
+    ])
+    vi.spyOn(predittoreRepo, 'consumiFinestra').mockResolvedValue([
+      { voce_id: 1, totale: 10 }
+    ])
+    vi.spyOn(predittoreRepo, 'mediaStorica').mockResolvedValue([
+      { voce_id: 1, media_unita_ora: 20, occorrenze: 5 }
+    ])
+    vi.spyOn(predittoreRepo, 'gruppiContatore').mockResolvedValue([])
+
+    const res = await predittore.eseguiPredizione()
+    expect(res).toBeDefined()
+    expect(res.configurazione.soglia_warn_urgenza).toBe(300)
+    expect(res.predizioni).toHaveLength(1)
+    expect(res.predizioni[0].nome).toBe('Acqua')
+    expect(res.predizioni[0].quantita_attuale).toBe(5)
+    
+    vi.restoreAllMocks()
+  })
+
+  it('calcola la predizione per una singola voce (eseguiPredizionePerVoce)', async () => {
+    vi.spyOn(configurazioneRepo, 'leggiMappa').mockResolvedValue({
+      evento_fine_oggi: '23:30',
+      soglia_warn_urgenza: '300',
+      giorni_storico: '30'
+    })
+    vi.spyOn(predittoreRepo, 'elencaVociAttive').mockResolvedValue([
+      { id: 1, nome: 'Acqua', quantita: 5, attiva: true, tempo_riapprovvigionamento: 600, settore_stampa: 'bar', priorita_voce: 'media', soglia_rosso: 2, soglia_giallo: 10 }
+    ])
+    vi.spyOn(predittoreRepo, 'consumiFinestra').mockResolvedValue([
+      { voce_id: 1, totale: 10 }
+    ])
+    vi.spyOn(predittoreRepo, 'mediaStorica').mockResolvedValue([
+      { voce_id: 1, media_unita_ora: 20, occorrenze: 5 }
+    ])
+    vi.spyOn(predittoreRepo, 'gruppiContatore').mockResolvedValue([])
+
+    const res = await predittore.eseguiPredizionePerVoce(1)
+    expect(res).toBeDefined()
+    expect(res.nome).toBe('Acqua')
+    
+    vi.restoreAllMocks()
+  })
+
+  it('gestisce indici condivisi (tabella voce_contatore) e catch errori', async () => {
+    vi.spyOn(configurazioneRepo, 'leggiMappa').mockResolvedValue({})
+    vi.spyOn(predittoreRepo, 'elencaVociAttive').mockResolvedValue([
+      { id: 1, nome: 'Acqua', quantita: 5, attiva: true }
+    ])
+    vi.spyOn(predittoreRepo, 'consumiFinestra').mockResolvedValue([])
+    vi.spyOn(predittoreRepo, 'mediaStorica').mockResolvedValue([])
+    
+    // Test 1: Restituisce stringa condivisa
+    vi.spyOn(predittoreRepo, 'gruppiContatore').mockResolvedValue([
+      { voci: '1,2,3' },
+      { voci: '4' } // ignorato (length 1)
+    ])
+    await predittore.eseguiPredizione()
+
+    // Test 2: Catch su throw
+    vi.spyOn(predittoreRepo, 'gruppiContatore').mockRejectedValue(new Error('DB Error'))
+    const res = await predittore.eseguiPredizione()
+    expect(res.predizioni).toHaveLength(1)
+
+    vi.restoreAllMocks()
   })
 })

@@ -31,10 +31,10 @@ export default defineConfig({
 
       // Soglie minime: il CI fallisce se scende sotto queste percentuali
       thresholds: {
-        branches: 80,
-        functions: 80,
-        lines: 80,
-        statements: 80,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+        statements: 90,
       },
 
       // Directory di output per il report HTML

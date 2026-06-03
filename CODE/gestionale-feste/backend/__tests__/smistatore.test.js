@@ -184,6 +184,34 @@ describe('Routing (routeOrder)', () => {
     expect(r.comande[0].reparto).toBe('cucina')
     expect(r.comande[0].righe).toHaveLength(2)
   })
+
+  it('smista su più reparti e ordina le comande per priorità P decrescente', () => {
+    const r = smistatore.routeOrder({
+      ordine_id: 1,
+      // Una per il bar (P alto per via di un ipotetico rischio scorte/asporto se lo settassimo, qui settiamo manuale)
+      // ma il calcolo di P dà priorità a quello che ha rischio_scorte = 1
+      asporto: false,
+      righe: [
+        { voce_id: 1, nome: 'Acqua', quantita: 1, settore_stampa: 'bar', tempo_preparazione: 10, scorta_attiva: 1, scorta_quantita: 1, soglia_rosso: 5 }, // Rischio alto -> P più basso (-E)
+        { voce_id: 2, nome: 'Pizza', quantita: 1, settore_stampa: 'cucina', tempo_preparazione: 100, scorta_attiva: 0 } // No rischio
+      ],
+    })
+    
+    expect(r.comande).toHaveLength(2)
+    // La comanda con la riga a P maggiore deve stare al primo posto
+    const p0 = r.comande[0].righe[0].P
+    const p1 = r.comande[1].righe[0].P
+    expect(p0).toBeGreaterThanOrEqual(p1)
+  })
+
+  it('applica i fallback ai default quando mancano settore_stampa e tempo_preparazione', () => {
+    // Righe 67 e 81: task.settore_stampa || 'default', riga.tempo_preparazione || TEMPO_PREP_DEFAULT
+    const r = smistatore.routeOrder({
+      ordine_id: 2,
+      righe: [{ voce_id: 3, nome: 'Sconosciuto', quantita: 1, scorta_attiva: 0 }] // Manca settore e tempo
+    })
+    expect(r.comande[0].reparto).toBe('default')
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -222,6 +250,12 @@ describe('Ranking P', () => {
     })
     const delta = senza.comande[0].righe[0].P - con.comande[0].righe[0].P
     expect(Math.abs(delta - PESI.E)).toBeLessThan(0.5)
+  })
+
+  it('calcolaRanking applica default se tempo_preparazione è mancante o 0', () => {
+    // Riga 60: task.tempo_preparazione || TEMPO_PREP_DEFAULT
+    const P = smistatore._carichi.calcolaRanking({ timestamp: Date.now(), tempo_preparazione: 0 }, 'bar')
+    expect(P).toBeDefined()
   })
 })
 
@@ -272,6 +306,16 @@ describe('Bilanciamento end-to-end con fallback bidirezionale', () => {
     smistatore.setStatoStampante('cucina', 'online')
     smistatore.setStatoStampante('cucina_2', 'online')
   })
+
+  it('imposta i fallback a [] se vengono passati parametri non array', () => {
+    // Riga 197: Array.isArray
+    smistatore.setFallback('cucina', null)
+    const r = smistatore.routeOrder({
+      ordine_id: 1,
+      righe: [{ voce_id: 1, nome: 'X', quantita: 1, settore_stampa: 'cucina', scorta_attiva: 0 }],
+    })
+    expect(r.comande[0].reparto).toBe('cucina')
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -313,5 +357,16 @@ describe('snapshot', () => {
     expect(snap.bar.numero_task).toBe(1)
     expect(snap.bar.stampante).toBe('online')
     expect(snap.bar.task).toHaveLength(1)
+  })
+
+  it('gestisce lo snapshot con stampante offline', () => {
+    // Riga 206: stampanteOnline(reparto) ? 'online' : 'offline'
+    smistatore.routeOrder({
+      ordine_id: 2,
+      righe: [{ voce_id: 11, nome: 'B', quantita: 1, settore_stampa: 'cucina', scorta_attiva: 0 }],
+    })
+    smistatore.setStatoStampante('cucina', 'offline')
+    const snap = smistatore.snapshot()
+    expect(snap.cucina.stampante).toBe('offline')
   })
 })
