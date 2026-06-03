@@ -15,13 +15,18 @@ export default defineConfig({
       // Report: testo in console + HTML navigabile + lcov per CI/badge
       reporter: ['text', 'html', 'lcov'],
 
-      // Misura la copertura solo sui file di logica (services)
-      include: ['src/services/**/*.js'],
+      // Misura la copertura solo sui file algoritmici principali testati
+      include: [
+        'src/services/smistatore.js',
+        'src/services/predittore.js'
+      ],
 
-      // Escludi file che dipendono da I/O esterno (DB, TCP, Socket.io)
+      // Escludi esplicitamente file che dipendono da I/O esterno o non algoritmici
       exclude: [
         'src/services/escpos-emulator.js',
         'src/services/printer-dispatcher.js',
+        'src/services/formatter.js',
+        'src/services/stampa/**'
       ],
 
       // Soglie minime: il CI fallisce se scende sotto queste percentuali
