@@ -1,0 +1,14 @@
+{
+  "index.css": [],
+  "main.jsx": [
+    "index.css",
+    "pages/Admin.jsx",
+    "pages/Cassa.jsx",
+    "pages/Predittore.jsx",
+    "pages/Simulazione.jsx"
+  ],
+  "pages/Admin.jsx": [],
+  "pages/Cassa.jsx": [],
+  "pages/Predittore.jsx": [],
+  "pages/Simulazione.jsx": []
+}

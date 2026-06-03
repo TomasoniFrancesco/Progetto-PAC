@@ -14,7 +14,8 @@
 //
 // Unità interne: tassi in unità/minuto, tempi in secondi.
 
-const db = require('../db')
+const repo = require('../repositories/predittore.repo')
+const configurazioneRepo = require('../repositories/configurazione.repo')
 
 // ───── Costanti dell'algoritmo ─────────────────────────────────────────────
 const PESI_NORMALE = { alpha: 0.5, beta: 0.3, gamma: 0.2 }
@@ -27,9 +28,7 @@ const PRIORITA_VALORE = { bassa: 0.5, media: 1.0, alta: 1.5 }
 
 // ───── Lettura configurazione runtime dal DB ───────────────────────────────
 async function leggiConfigurazione() {
-    const [righe] = await db.query('SELECT chiave, valore FROM configurazione')
-    const mappa = {}
-    for (const r of righe) mappa[r.chiave] = r.valore
+    const mappa = await configurazioneRepo.leggiMappa()
     return {
         evento_fine_oggi: mappa.evento_fine_oggi || '23:30',
         soglia_warn_urgenza: parseFloat(mappa.soglia_warn_urgenza || '300'),
@@ -51,15 +50,7 @@ function tempoResiduoEventoSec(orarioHHMM, adesso = new Date()) {
 // ───── Aggregazione consumi: SOMMA quantità vendute in una finestra ───────
 // Ritorna: Map<voce_id, somma>
 async function aggregaConsumiFinestra(minutiIndietro) {
-    const [righe] = await db.query(
-        `SELECT r.voce_id, COALESCE(SUM(r.quantita), 0) AS totale
-         FROM ordine_riga r
-         JOIN ordine o ON o.id = r.ordine_id
-         WHERE o.stato = 'confermato'
-           AND o.timestamp >= (NOW() - INTERVAL ? MINUTE)
-         GROUP BY r.voce_id`,
-        [minutiIndietro]
-    )
+    const righe = await repo.consumiFinestra(minutiIndietro)
     const mappa = new Map()
     for (const r of righe) mappa.set(r.voce_id, Number(r.totale))
     return mappa
@@ -72,22 +63,7 @@ async function aggregaConsumiFinestra(minutiIndietro) {
 // Ritorna: Map<voce_id, { media_unita_ora, occorrenze }>
 async function mediaStoricaFascia(giorniLookback, adesso = new Date()) {
     const oraCorrente = adesso.getHours()
-    const [righe] = await db.query(
-        `SELECT voce_id, AVG(somma_giornaliera) AS media_unita_ora, COUNT(*) AS occorrenze
-         FROM (
-             SELECT r.voce_id, DATE(o.timestamp) AS giorno,
-                    SUM(r.quantita) AS somma_giornaliera
-             FROM ordine_riga r
-             JOIN ordine o ON o.id = r.ordine_id
-             WHERE o.stato = 'confermato'
-               AND HOUR(o.timestamp) = ?
-               AND o.timestamp >= (NOW() - INTERVAL ? DAY)
-               AND o.timestamp <  (NOW() - INTERVAL 1 HOUR)
-             GROUP BY r.voce_id, DATE(o.timestamp)
-         ) AS t
-         GROUP BY voce_id`,
-        [oraCorrente, giorniLookback]
-    )
+    const righe = await repo.mediaStorica(oraCorrente, giorniLookback)
     const mappa = new Map()
     for (const r of righe) {
         mappa.set(r.voce_id, {
@@ -167,11 +143,7 @@ function quantitaSuggerita(consumoAttesoUnitaMin, tempoRiappSec) {
 // questo, in modo che il loro indice U sia calcolato sul consumo aggregato.
 async function indiciCondivisione() {
     try {
-        const [righe] = await db.query(
-            `SELECT contatore_id, GROUP_CONCAT(voce_id) AS voci
-             FROM voce_contatore
-             GROUP BY contatore_id`
-        )
+        const righe = await repo.gruppiContatore()
         const gruppi = []
         for (const r of righe) {
             const voci = String(r.voci).split(',').map(Number).filter(Boolean)
@@ -196,24 +168,83 @@ function aggregaConsumiCondivisi(consumiMap, gruppiCondivisi) {
     return aggregato
 }
 
+// ───── Stato visivo della scorta (derivato dalle soglie) ──────────────────
+function derivaStatoVisivo(v) {
+    const q = v.quantita || 0
+    if (!v.attiva) return 'sconosciuto'
+    if (q === 0) return 'esaurito'
+    if (q <= (v.soglia_rosso || 0)) return 'critico'
+    if (q <= (v.soglia_giallo || 0)) return 'attenzione'
+    return 'disponibile'
+}
+
+// ───── Valutazione di una singola voce ─────────────────────────────────────
+// Dato il contesto (consumi aggregati, storico, config, tempo residuo evento)
+// calcola pesi, consumo atteso, tempo di esaurimento, indice U e classificazione,
+// restituendo il record di predizione completo della voce.
+function valutaVoce(v, { c15Agg, c1hAgg, storico, config, tRes }) {
+    const consumo15 = c15Agg.get(v.id) || 0
+    const consumo1h = c1hAgg.get(v.id) || 0
+    const storicoVoce = storico.get(v.id) || { media_unita_ora: 0, occorrenze: 0 }
+
+    const pesi = calcolaPesi({
+        consumo15Min: consumo15,
+        mediaStoricaUnitaOra: storicoVoce.media_unita_ora,
+        occorrenzeStoriche: storicoVoce.occorrenze,
+    })
+
+    const consumoAttUnitaMin = consumoAtteso(pesi, consumo15, consumo1h, storicoVoce.media_unita_ora)
+    const tempoEsaurSec = tempoEsaurimentoSec(v.quantita || 0, consumoAttUnitaMin)
+
+    const U = calcolaU({
+        tempoRiappSec: v.tempo_riapprovvigionamento,
+        tempoEsaurSec,
+        priorita: v.priorita_voce,
+        tempoResiduoEventoSec: tRes,
+    })
+
+    const statoVisivo = derivaStatoVisivo(v)
+    const stato = classifica({
+        quantita: v.quantita || 0,
+        U,
+        statoScorta: statoVisivo,
+        sogliaWarn: config.soglia_warn_urgenza,
+    })
+
+    return {
+        voce_id: v.id,
+        codice: v.codice,
+        nome: v.nome,
+        reparto: v.settore_stampa,
+        priorita: v.priorita_voce,
+        quantita_attuale: v.quantita || 0,
+        scorta_attiva: !!v.attiva,
+        stato_scorta_corrente: statoVisivo,
+        consumo_15min: consumo15,
+        consumo_1h: consumo1h,
+        media_storica_unita_ora: parseFloat(storicoVoce.media_unita_ora.toFixed(2)),
+        occorrenze_storiche: storicoVoce.occorrenze,
+        modalita: pesi.modalita,
+        pesi: { alpha: pesi.alpha, beta: pesi.beta, gamma: pesi.gamma },
+        consumo_atteso_unita_min: parseFloat(consumoAttUnitaMin.toFixed(4)),
+        tempo_esaurimento_sec: tempoEsaurSec === Infinity ? null : Math.round(tempoEsaurSec),
+        tempo_residuo_evento_sec: tRes,
+        tempo_riapprovvigionamento_sec: v.tempo_riapprovvigionamento,
+        U: parseFloat(U.toFixed(2)),
+        stato,
+        suggerimento: stato === 'urgente'
+            ? { quantita: quantitaSuggerita(consumoAttUnitaMin, v.tempo_riapprovvigionamento) }
+            : null,
+    }
+}
+
 // ───── Main: eseguiPredizione() ───────────────────────────────────────────
 async function eseguiPredizione({ filtroVociIds = null } = {}) {
     const config = await leggiConfigurazione()
     const tRes = tempoResiduoEventoSec(config.evento_fine_oggi)
 
-    // Carica voci attive (visibili + scorta attiva) — escludi non vendibili
-    let queryVoci = `
-        SELECT v.id, v.codice, v.nome, v.settore_stampa, v.tempo_riapprovvigionamento,
-               v.priorita_voce, s.quantita, s.soglia_giallo, s.soglia_rosso, s.attiva
-        FROM voce v
-        LEFT JOIN scorta s ON s.voce_id = v.id
-        WHERE v.visibile = 1`
-    const params = []
-    if (filtroVociIds && filtroVociIds.length) {
-        queryVoci += ' AND v.id IN (?)'
-        params.push(filtroVociIds)
-    }
-    const [voci] = await db.query(queryVoci, params)
+    // Voci attive (visibili) con dati scorta
+    const voci = await repo.elencaVociAttive(filtroVociIds)
 
     // Consumi finestre temporali e storico
     const [c15, c1h, storico, gruppiCondivisi] = await Promise.all([
@@ -227,71 +258,10 @@ async function eseguiPredizione({ filtroVociIds = null } = {}) {
     const c15Agg = aggregaConsumiCondivisi(c15, gruppiCondivisi)
     const c1hAgg = aggregaConsumiCondivisi(c1h, gruppiCondivisi)
 
-    const risultati = []
-    for (const v of voci) {
-        const consumo15 = c15Agg.get(v.id) || 0
-        const consumo1h = c1hAgg.get(v.id) || 0
-        const storicoVoce = storico.get(v.id) || { media_unita_ora: 0, occorrenze: 0 }
+    const contesto = { c15Agg, c1hAgg, storico, config, tRes }
+    const predizioni = voci.map(v => valutaVoce(v, contesto))
 
-        const pesi = calcolaPesi({
-            consumo15Min: consumo15,
-            mediaStoricaUnitaOra: storicoVoce.media_unita_ora,
-            occorrenzeStoriche: storicoVoce.occorrenze,
-        })
-
-        const consumoAttUnitaMin = consumoAtteso(pesi, consumo15, consumo1h, storicoVoce.media_unita_ora)
-        const tempoEsaurSec = tempoEsaurimentoSec(v.quantita || 0, consumoAttUnitaMin)
-
-        const U = calcolaU({
-            tempoRiappSec: v.tempo_riapprovvigionamento,
-            tempoEsaurSec,
-            priorita: v.priorita_voce,
-            tempoResiduoEventoSec: tRes,
-        })
-
-        // Stato visivo derivato per la classificazione
-        let statoVisivo = 'sconosciuto'
-        if (!v.attiva) statoVisivo = 'sconosciuto'
-        else if ((v.quantita || 0) === 0) statoVisivo = 'esaurito'
-        else if ((v.quantita || 0) <= (v.soglia_rosso || 0)) statoVisivo = 'critico'
-        else if ((v.quantita || 0) <= (v.soglia_giallo || 0)) statoVisivo = 'attenzione'
-        else statoVisivo = 'disponibile'
-
-        const stato = classifica({
-            quantita: v.quantita || 0,
-            U,
-            statoScorta: statoVisivo,
-            sogliaWarn: config.soglia_warn_urgenza,
-        })
-
-        risultati.push({
-            voce_id: v.id,
-            codice: v.codice,
-            nome: v.nome,
-            reparto: v.settore_stampa,
-            priorita: v.priorita_voce,
-            quantita_attuale: v.quantita || 0,
-            scorta_attiva: !!v.attiva,
-            stato_scorta_corrente: statoVisivo,
-            consumo_15min: consumo15,
-            consumo_1h: consumo1h,
-            media_storica_unita_ora: parseFloat(storicoVoce.media_unita_ora.toFixed(2)),
-            occorrenze_storiche: storicoVoce.occorrenze,
-            modalita: pesi.modalita,
-            pesi: { alpha: pesi.alpha, beta: pesi.beta, gamma: pesi.gamma },
-            consumo_atteso_unita_min: parseFloat(consumoAttUnitaMin.toFixed(4)),
-            tempo_esaurimento_sec: tempoEsaurSec === Infinity ? null : Math.round(tempoEsaurSec),
-            tempo_residuo_evento_sec: tRes,
-            tempo_riapprovvigionamento_sec: v.tempo_riapprovvigionamento,
-            U: parseFloat(U.toFixed(2)),
-            stato,
-            suggerimento: stato === 'urgente'
-                ? { quantita: quantitaSuggerita(consumoAttUnitaMin, v.tempo_riapprovvigionamento) }
-                : null,
-        })
-    }
-
-    return { configurazione: config, generato_a: new Date().toISOString(), predizioni: risultati }
+    return { configurazione: config, generato_a: new Date().toISOString(), predizioni }
 }
 
 async function eseguiPredizionePerVoce(voce_id) {
@@ -312,6 +282,8 @@ module.exports = {
         quantitaSuggerita,
         tempoResiduoEventoSec,
         aggregaConsumiCondivisi,
+        derivaStatoVisivo,
+        valutaVoce,
         PESI_NORMALE,
         PESI_PICCO,
         PRIORITA_VALORE,

@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../db')
 const predittore = require('../services/predittore')
+const configurazione = require('../repositories/configurazione.repo')
+const voci = require('../repositories/voce.repo')
 
 // GET /api/predittore/scorte
 //  Query opzionali:
@@ -55,10 +56,7 @@ router.get('/scorte/:voce_id', async (req, res) => {
 // GET /api/predittore/configurazione
 router.get('/configurazione', async (req, res) => {
     try {
-        const [righe] = await db.query('SELECT chiave, valore FROM configurazione')
-        const mappa = {}
-        for (const r of righe) mappa[r.chiave] = r.valore
-        res.json(mappa)
+        res.json(await configurazione.leggiMappa())
     } catch (err) {
         res.status(500).json({ errore: err.message })
     }
@@ -70,11 +68,7 @@ router.put('/configurazione/:chiave', async (req, res) => {
         const { chiave } = req.params
         const { valore } = req.body
         if (valore == null) return res.status(400).json({ errore: 'valore obbligatorio' })
-        await db.query(
-            `INSERT INTO configurazione (chiave, valore) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE valore = VALUES(valore)`,
-            [chiave, String(valore)]
-        )
+        await configurazione.imposta(chiave, valore)
         res.json({ chiave, valore })
     } catch (err) {
         res.status(500).json({ errore: err.message })
@@ -97,7 +91,7 @@ router.put('/voce/:id', async (req, res) => {
         }
         if (!updates.length) return res.status(400).json({ errore: 'nessun campo valido' })
         params.push(parseInt(req.params.id))
-        await db.query(`UPDATE voce SET ${updates.join(', ')} WHERE id = ?`, params)
+        await voci.aggiornaCampiPredittore(updates, params)
         res.json({ ok: true })
     } catch (err) {
         res.status(500).json({ errore: err.message })

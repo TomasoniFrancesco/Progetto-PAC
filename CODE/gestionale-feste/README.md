@@ -1,211 +1,153 @@
 # Gestionale Feste di Paese
 
-Sistema POS per la gestione di feste di paese e sagre locali, con due algoritmi
-intelligenti per il routing dinamico delle comande e la previsione delle scorte.
+Sistema POS per sagre e feste di paese: cassa, gestione menu e scorte, e stampa
+delle comande verso i reparti. Gira tutto in Docker, quindi per provarlo basta
+Docker Desktop, non serve installare Node, MariaDB o altro a mano.
 
-## Stack
+Stack: React + Vite (frontend), Node.js + Express + Socket.io (backend),
+MariaDB (database).
 
-- Frontend: React + Vite + Socket.io client
-- Backend: Node.js + Express + Socket.io + node-thermal-printer
-- Database: MariaDB
-- Infrastruttura: Docker + Docker Compose
+## Cosa serve
 
-## Prerequisiti
+Solo Docker Desktop:
 
-Installare Docker Desktop sul proprio sistema:
 - Mac (Intel e Apple Silicon): https://docs.docker.com/desktop/install/mac-install/
 - Windows: https://docs.docker.com/desktop/install/windows-install/
 
-Docker Desktop include gia Docker Compose. Non serve installare nient'altro.
+Su Windows durante l'installazione può chiedere di abilitare WSL 2: confermate.
+Dopo aver installato, avviate Docker Desktop e aspettate che l'icona della balena
+smetta di animarsi: vuol dire che è pronto.
 
 ## Avvio
 
-Clonare il repository, entrare nella cartella e lanciare:
+Clonate il repository (o scaricate lo zip ed estraetelo), entrate nella cartella
+e lanciate:
 
     docker compose up --build
 
-La prima volta l'avvio richiede qualche minuto perche Docker scarica le immagini
-e installa le dipendenze npm.
+La prima volta ci mette qualche minuto, perché scarica le immagini e installa le
+dipendenze. È tutto pronto quando nel terminale compaiono queste righe:
 
-A regime i quattro pagine principali saranno accessibili a:
+    gestionale_backend  | Database connesso correttamente
+    gestionale_backend  | Backend avviato su porta 3001
 
-| Pagina               | URL                                  |
-|----------------------|--------------------------------------|
-| Cassa                | http://localhost:5173/cassa          |
-| Admin                | http://localhost:5173/admin          |
-| Simulazione stampanti| http://localhost:5173/simulazione    |
-| Predittore scorte    | http://localhost:5173/predittore     |
-| API backend          | http://localhost:3001/api            |
+A quel punto aprite il browser:
 
-## Funzionalità implementate
+| Pagina                | Indirizzo                          |
+|-----------------------|------------------------------------|
+| Cassa                 | http://localhost:5173/cassa        |
+| Admin                 | http://localhost:5173/admin        |
+| Simulazione stampanti | http://localhost:5173/simulazione  |
+| Predittore scorte     | http://localhost:5173/predittore   |
+| API backend           | http://localhost:3001/api          |
 
-### Operative (cassa e magazzino)
-- Componi ordine con tasti colorati per pietanza, divisi per settore
-- Modifica quantità/note per porzione, scontistica, asporto, tastierino numerico
-- Tabella allergeni per ogni voce nell'ordine corrente
-- Cronologia ordini del giorno
-- Admin: CRUD voci di menu (singole e aggregate), gestione settori, gestione
-  stampanti, gestione scorte con storico rifornimenti e soglie
-- Aggiornamento scorte in tempo reale via WebSocket
+Dalla seconda volta in poi non serve più `--build`: basta `docker compose up`.
 
-### Algoritmo 1 — Smistatore Intelligente Multi-Reparto
-Bilanciamento dinamico del carico operativo verso i reparti di stampa.
-- Calcolo del carico per reparto: `n_task × t_prep × α_stress × β_stampante`
-- Selezione greedy del reparto a minor carico con tie-break su last-task
-  timestamp
-- Ranking della priorità di lavorazione P:
-  `A·t_attesa + B·π_asporto + C·s − D·carico − E·rischio_scorte`
-- Batching per voce nella stessa finestra temporale
-- Fallback bidirezionale tra reparti compatibili (es. `cucina ↔ cucina_2`)
-- Generazione e instradamento di una comanda per reparto coinvolto
-- Service: [backend/src/services/smistatore.js](backend/src/services/smistatore.js)
-- API: `GET /api/smistatore/stato`, `POST /api/smistatore/completa`,
-  `PUT /api/smistatore/fallback/:reparto`
+## Comandi utili
 
-### Algoritmo 2 — Predittore Dinamico di Riordino Scorte
-Stima il rischio di esaurimento per ogni voce attiva del menu.
-- Consumo atteso come media pesata: `α·c_15min + β·c_1h + γ·media_storica`
-- Tre modalità auto-selezionate:
-  - **Normale** (α=0.5, β=0.3, γ=0.2) in condizioni standard
-  - **Picco** (α=0.8, β=0.15, γ=0.05) se consumo recente > 2× media storica
-  - **Prudente** (γ=0) se mancano dati storici sufficienti (<3 occorrenze)
-- Tempo di esaurimento = quantità / consumo atteso (∞ se consumo nullo)
-- Indice di urgenza:
-  `U = max(0, t_riapp − t_esaur) × priorità × moltiplicatore_contesto`
-- Classificazione in 4 stati: stabile / attenzione / urgente / esaurito
-- Suggerimento di quantità da riordinare per le voci urgenti
-- Aggregazione consumi per ingredienti condivisi (es. polenta)
-- Alert WebSocket real-time post-conferma ordine
-- Service: [backend/src/services/predittore.js](backend/src/services/predittore.js)
-- API: `GET /api/predittore/scorte`, `GET /api/predittore/scorte/:voce_id`,
-  `GET /api/predittore/configurazione`
+    docker compose up -d --build      # avvia in background
+    docker compose down               # ferma tutto
+    docker compose down -v            # ferma e azzera il database (reset completo)
+    docker compose logs -f backend    # log del backend in tempo reale
+    docker compose exec backend sh    # shell dentro il container backend
 
-### Stampa scontrini con emulatore TCP ESC/POS
-Sistema di stampa "pronto per hardware reale". In modalità demo, ogni
-"stampante" è un server TCP locale che parsa i byte ESC/POS inviati dal
-dispatcher e ricostruisce uno scontrino visivamente fedele su `/simulazione`.
-Il giorno della migrazione a stampanti termiche fisiche basta aggiornare
-gli `indirizzo_ip` nella tabella `stampante` e impostare `EMULATORE_ATTIVO=0`:
-zero modifiche al codice.
+Dopo aver modificato il codice del backend, ricostruite solo quello:
 
-- Formatter ESC/POS: [backend/src/services/formatter.js](backend/src/services/formatter.js)
-- Dispatcher: [backend/src/services/printer-dispatcher.js](backend/src/services/printer-dispatcher.js)
-- Emulatore TCP: [backend/src/services/escpos-emulator.js](backend/src/services/escpos-emulator.js)
-- Audit completo: `GET /api/stampe?ordine_id=N`
-- Test pagina e controllo on/off da UI di simulazione
+    docker compose up -d --build backend
+
+Il frontend invece si aggiorna da solo grazie ai volumi Docker.
+
+## Cosa fa
+
+**Cassa.** Si compone l'ordine con i tasti colorati divisi per settore, si
+gestiscono quantità, note per porzione, sconto, asporto e l'incasso con il
+tastierino. C'è anche la tabella allergeni e la cronologia degli ordini del
+giorno. Le scorte si aggiornano in tempo reale via WebSocket.
+
+**Admin.** Gestione del menu (voci singole e aggregate), dei settori, delle
+stampanti e delle scorte con storico dei rifornimenti e soglie di allerta.
+
+**Smistatore comande.** Quando si conferma un ordine, le righe vengono smistate
+ai reparti di stampa bilanciando il carico: ogni comanda va al reparto più
+scarico, con batching per voce e fallback tra reparti compatibili (es. le due
+cucine si scambiano gli ordini in base al carico).
+
+**Predittore scorte.** Stima per ogni voce quanto manca all'esaurimento usando i
+consumi recenti e lo storico, e segnala le voci a rischio (stabile / attenzione /
+urgente / esaurito) con un suggerimento sulla quantità da riordinare.
+
+**Stampa.** Le stampanti sono emulate da piccoli server TCP locali che
+interpretano i byte ESC/POS e ricostruiscono lo scontrino nella pagina di
+simulazione. Il codice è già pronto per stampanti termiche reali (vedi sotto).
 
 ## Test
 
-Due suite di test (53 assertion totali, zero dipendenze esterne):
+Due suite, senza dipendenze esterne, da lanciare col backend attivo:
 
-    # Smistatore (23 test)
-    docker exec gestionale_backend node tests/test-smistatore.js
+    docker compose exec backend node tests/test-smistatore.js
+    docker compose exec backend node tests/test-predittore.js
 
-    # Predittore (30 test)
-    docker exec gestionale_backend node tests/test-predittore.js
+## Problemi comuni
 
-Coprono formule numeriche, casi limite, routing greedy con fallback,
-batching, classificazione 4-stati, modalità picco/prudente, integrazione
-HTTP end-to-end.
+**Porta 3306 occupata.** Se avete MAMP, XAMPP o MySQL già installati, potrebbero
+tenere occupata la 3306. Il database qui è esposto sulla 3307, quindi di solito
+non dà fastidio; se comunque va in errore, chiudete MAMP/XAMPP prima di avviare.
+
+**Schermata nera o senza tasti.** Al primo avvio il backend potrebbe non essere
+ancora pronto: aspettate qualche secondo e ricaricate la pagina.
+
+**"address already in use" sulla 5173 o 3001.** Qualcos'altro occupa quelle
+porte. Trovate il processo e chiudetelo:
+
+    lsof -i :5173                  # Mac/Linux
+    netstat -ano | findstr :5173   # Windows
+
+**Docker non parte su Windows.** Serve la virtualizzazione abilitata nel BIOS e
+WSL 2 installato; Docker Desktop guida nell'installazione di WSL 2 se manca.
+
+## Passare a stampanti reali
+
+Il sistema usa gli stessi byte ESC/POS sia in demo che con hardware vero, quindi
+per collegare stampanti termiche fisiche bastano tre passi, senza toccare il
+codice:
+
+1. Aggiornare IP e porta nella tabella `stampante`:
+
+       UPDATE stampante SET indirizzo_ip='192.168.1.101', porta=9100 WHERE reparto='cucina';
+
+2. Nel `docker-compose.yml`, impostare `EMULATORE_ATTIVO: "0"`.
+3. Riavviare il backend: `docker compose restart backend`.
+
+## Database (sviluppo)
+
+Per collegarsi con TablePlus, DBeaver o simili:
+
+    host:     localhost
+    porta:    3307
+    database: gestionale_feste
+    utente:   gestionale
+    password: gestionale_password
+
+Al primo avvio lo schema e i dati di esempio vengono creati da `database/init.sql`.
 
 ## Struttura del progetto
 
     gestionale-feste/
     ├── docker-compose.yml
-    ├── PIANO_STAMPA.md            piano implementazione stampa ESC/POS
-    ├── PIANO_PREDITTORE.md        piano implementazione predittore scorte
     ├── database/
-    │   └── init.sql               schema completo + seed
+    │   └── init.sql              schema + dati di esempio
     ├── backend/
-    │   ├── Dockerfile
-    │   ├── package.json
-    │   ├── src/
-    │   │   ├── index.js           bootstrap Express + Socket.io + migrazioni
-    │   │   ├── db.js              connessione MariaDB
-    │   │   ├── routes/
-    │   │   │   ├── ordini.js
-    │   │   │   ├── menu.js
-    │   │   │   ├── scorte.js
-    │   │   │   ├── stampanti.js
-    │   │   │   ├── smistatore.js  endpoint stato/fallback/completa
-    │   │   │   ├── stampe.js      audit log + controllo emulatori
-    │   │   │   └── predittore.js  endpoint predizioni + configurazione
-    │   │   └── services/
-    │   │       ├── smistatore.js          algoritmo routing
-    │   │       ├── printer-dispatcher.js  orchestratore stampa
-    │   │       ├── escpos-emulator.js     server TCP per demo
-    │   │       ├── formatter.js           ESC/POS buffer generator
-    │   │       └── predittore.js          algoritmo predizione scorte
-    │   └── tests/
-    │       ├── test-smistatore.js
-    │       └── test-predittore.js
+    │   └── src/
+    │       ├── index.js          avvio Express, Socket.io e migrazioni
+    │       ├── routes/           endpoint HTTP (ordini, menu, scorte, ...)
+    │       ├── repositories/     accesso al database (query SQL)
+    │       └── services/         logica: smistatore, predittore, stampa
     └── frontend/
-        ├── Dockerfile
-        ├── package.json
-        ├── vite.config.js
-        ├── index.html
         └── src/
-            ├── main.jsx
-            ├── index.css
-            └── pages/
-                ├── Cassa.jsx
-                ├── Admin.jsx
-                ├── Simulazione.jsx
-                └── Predittore.jsx
+            ├── pages/            Cassa, Admin, Simulazione, Predittore
+            ├── components/       componenti riusabili
+            ├── hooks/            hook condivisi
+            └── api/              client per le chiamate al backend
 
-## Comandi utili
-
-Avviare in background:
-
-    docker compose up -d --build
-
-Fermare tutto:
-
-    docker compose down
-
-Fermare e cancellare anche il database (reset completo):
-
-    docker compose down -v
-
-Vedere i log del backend in tempo reale:
-
-    docker compose logs -f backend
-
-Aprire una shell nel container backend (per debug):
-
-    docker compose exec backend sh
-
-## Migrazione da emulatore TCP a stampanti reali
-
-Quando si collegheranno stampanti termiche ESC/POS fisiche:
-
-1. Aggiornare gli IP nella tabella `stampante`:
-
-       UPDATE stampante SET indirizzo_ip='192.168.1.101', porta=9100 WHERE reparto='cucina';
-
-2. Impostare in `docker-compose.yml`:
-
-       EMULATORE_ATTIVO: "0"
-
-3. Riavviare: `docker compose restart backend`
-
-Il dispatcher userà gli stessi byte ESC/POS già verificati in demo. Nessuna
-modifica al codice di business.
-
-## Credenziali database di sviluppo
-
-    host:     localhost:3306
-    database: gestionale_feste
-    user:     gestionale
-    password: gestionale_password
-
-## Note di sviluppo
-
-Il proxy Vite (vite.config.js) redirige automaticamente le chiamate /api
-e /socket.io al backend, quindi non serve specificare host e porta
-nelle fetch del frontend.
-
-Le modifiche ai file di frontend sono riflesse in tempo reale grazie ai volumi
-Docker. Per il backend, dopo modifiche al codice, rieseguire:
-
-    docker compose up -d --build backend
+Una nota tecnica: il proxy di Vite inoltra da solo le chiamate `/api` e
+`/socket.io` al backend, perciò nel frontend non serve indicare host e porta.

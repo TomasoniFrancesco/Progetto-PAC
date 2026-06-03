@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - routes/scorte.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/plato.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet" type="text/css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="https://github.com/the-simian/es6-plato">ES6 Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+      <li class="active">
+        <a href="display.html">Summary Display</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>routes/scorte.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">60.01</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">153</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">30.86</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">0.90</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">const express = require(&#039;express&#039;);
+const router = express.Router();
+const db = require(&#039;../db&#039;);
+
+// GET /api/scorte - tutte le scorte attive con stato visivo calcolato
+router.get(&#039;/&#039;, async (req, res) =&gt; {
+    try {
+        const [scorte] = await db.query(
+            `SELECT s.*, v.nome, v.codice,
+                CASE
+                    WHEN s.quantita = 0 THEN &#039;esaurito&#039;
+                    WHEN s.quantita &lt;= s.soglia_rosso THEN &#039;critico&#039;
+                    WHEN s.quantita &lt;= s.soglia_giallo THEN &#039;attenzione&#039;
+                    ELSE &#039;disponibile&#039;
+                END AS stato_visivo
+             FROM scorta s
+             JOIN voce v ON s.voce_id = v.id
+             WHERE s.attiva = 1`
+        );
+        res.json(scorte);
+    } catch (err) {
+        res.status(500).json({ errore: err.message });
+    }
+});
+
+// GET /api/scorte/:voce_id - scorta singola di una voce
+router.get(&#039;/:voce_id&#039;, async (req, res) =&gt; {
+    try {
+        const [righe] = await db.query(
+            `SELECT s.*,
+                CASE
+                    WHEN s.quantita = 0 THEN &#039;esaurito&#039;
+                    WHEN s.quantita &lt;= s.soglia_rosso THEN &#039;critico&#039;
+                    WHEN s.quantita &lt;= s.soglia_giallo THEN &#039;attenzione&#039;
+                    ELSE &#039;disponibile&#039;
+                END AS stato_visivo
+             FROM scorta s WHERE s.voce_id = ?`,
+            [req.params.voce_id]
+        );
+        res.json(righe.length &gt; 0 ? righe[0] : null);
+    } catch (err) {
+        res.status(500).json({ errore: err.message });
+    }
+});
+
+// GET /api/scorte/:voce_id/storico - storico rifornimenti di una voce
+router.get(&#039;/:voce_id/storico&#039;, async (req, res) =&gt; {
+    try {
+        const [storico] = await db.query(
+            `SELECT * FROM scorta_storico WHERE voce_id = ? ORDER BY data_rifornimento DESC LIMIT 50`,
+            [req.params.voce_id]
+        );
+        res.json(storico);
+    } catch (err) {
+        res.status(500).json({ errore: err.message });
+    }
+});
+
+// PUT /api/scorte/:voce_id - imposta scorta (admin)
+router.put(&#039;/:voce_id&#039;, async (req, res) =&gt; {
+    const { quantita, soglia_giallo, soglia_rosso, attiva } = req.body;
+    const io = req.app.locals.io;
+
+    try {
+        await db.query(
+            `INSERT INTO scorta (voce_id, quantita, soglia_giallo, soglia_rosso, attiva)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+             quantita = VALUES(quantita),
+             soglia_giallo = VALUES(soglia_giallo),
+             soglia_rosso = VALUES(soglia_rosso),
+             attiva = VALUES(attiva)`,
+            [req.params.voce_id, quantita, soglia_giallo || 10, soglia_rosso || 3, attiva !== false ? 1 : 0]
+        );
+
+        // Notifica tutti i client del cambiamento scorte
+        const [scorteAggiornate] = await db.query(
+            `SELECT s.*, v.nome,
+                CASE
+                    WHEN s.quantita = 0 THEN &#039;esaurito&#039;
+                    WHEN s.quantita &lt;= s.soglia_rosso THEN &#039;critico&#039;
+                    WHEN s.quantita &lt;= s.soglia_giallo THEN &#039;attenzione&#039;
+                    ELSE &#039;disponibile&#039;
+                END AS stato_visivo
+             FROM scorta s JOIN voce v ON s.voce_id = v.id WHERE s.attiva = 1`
+        );
+        io.emit(&#039;scorte_aggiornate&#039;, scorteAggiornate);
+
+        res.json({ messaggio: &#039;Scorta aggiornata&#039; });
+    } catch (err) {
+        res.status(500).json({ errore: err.message });
+    }
+});
+
+// POST /api/scorte/:voce_id/rifornimento - registra un rifornimento (aggiunge quantità + storico)
+router.post(&#039;/:voce_id/rifornimento&#039;, async (req, res) =&gt; {
+    const { quantita, note } = req.body;
+    const voceId = req.params.voce_id;
+    const io = req.app.locals.io;
+
+    if (!quantita || quantita &lt;= 0) {
+        return res.status(400).json({ errore: &#039;Quantità deve essere maggiore di 0&#039; });
+    }
+
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // Assicura che la riga scorta esista
+        await conn.query(
+            `INSERT INTO scorta (voce_id, quantita, attiva) VALUES (?, 0, 1)
+             ON DUPLICATE KEY UPDATE voce_id = voce_id`,
+            [voceId]
+        );
+
+        // Incrementa la quantità corrente
+        await conn.query(
+            &#039;UPDATE scorta SET quantita = quantita + ?, attiva = 1 WHERE voce_id = ?&#039;,
+            [quantita, voceId]
+        );
+
+        // Registra nello storico
+        await conn.query(
+            &#039;INSERT INTO scorta_storico (voce_id, quantita, note) VALUES (?, ?, ?)&#039;,
+            [voceId, quantita, note || null]
+        );
+
+        await conn.commit();
+
+        // Notifica i client
+        const [scorteAggiornate] = await db.query(
+            `SELECT s.*, v.nome,
+                CASE
+                    WHEN s.quantita = 0 THEN &#039;esaurito&#039;
+                    WHEN s.quantita &lt;= s.soglia_rosso THEN &#039;critico&#039;
+                    WHEN s.quantita &lt;= s.soglia_giallo THEN &#039;attenzione&#039;
+                    ELSE &#039;disponibile&#039;
+                END AS stato_visivo
+             FROM scorta s JOIN voce v ON s.voce_id = v.id WHERE s.attiva = 1`
+        );
+        io.emit(&#039;scorte_aggiornate&#039;, scorteAggiornate);
+
+        res.status(201).json({ messaggio: &#039;Rifornimento registrato&#039; });
+    } catch (err) {
+        await conn.rollback();
+        res.status(500).json({ errore: err.message });
+    } finally {
+        conn.release();
+    }
+});
+
+module.exports = router;
+</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

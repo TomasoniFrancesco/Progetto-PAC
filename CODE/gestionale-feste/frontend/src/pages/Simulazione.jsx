@@ -111,7 +111,6 @@ export default function Simulazione() {
             <header style={{ padding: '14px 20px', background: C.primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                     <h1 style={{ margin: 0, fontFamily: 'Public Sans, sans-serif', fontSize: 20, fontWeight: 900 }}>🖨 Simulazione Stampanti</h1>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, opacity: 0.85 }}>Una colonna per stampante fisica — gli scontrini arrivano in tempo reale</p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button type="button" onClick={() => { caricaStampanti(); caricaStatoEmulatori() }}

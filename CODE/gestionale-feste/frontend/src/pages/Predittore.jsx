@@ -100,7 +100,7 @@ export default function Predittore() {
                 <div>
                     <h1 style={{ margin: 0, fontFamily: 'Public Sans, sans-serif', fontSize: 20, fontWeight: 900 }}>📊 Predittore Scorte</h1>
                     <p style={{ margin: '2px 0 0', fontSize: 12, opacity: 0.85 }}>
-                        Indice di urgenza U calcolato in tempo reale per ogni voce attiva — generato {risposta && new Date(risposta.generato_a).toLocaleTimeString('it-IT')}
+                        Aggiornato alle {risposta && new Date(risposta.generato_a).toLocaleTimeString('it-IT')}
                     </p>
                 </div>
                 <a href="/cassa" style={{ color: '#fff', textDecoration: 'none', padding: '8px 14px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>← Torna alla Cassa</a>
