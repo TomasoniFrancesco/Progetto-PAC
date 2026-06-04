@@ -39,7 +39,7 @@ A quel punto aprite il browser:
 | Admin                 | http://localhost:5173/admin        |
 | Simulazione stampanti | http://localhost:5173/simulazione  |
 | Predittore scorte     | http://localhost:5173/predittore   |
-| API backend           | http://localhost:3001/api          |
+| API backend           | http://localhost:3001/api/health   |
 
 Dalla seconda volta in poi non serve più `--build`: basta `docker compose up`.
 
@@ -101,7 +101,7 @@ La misurazione della copertura è configurata con `c8/v8` per la cartella `servi
 
 Il comando stamperà una tabella riassuntiva nel terminale e genererà un report HTML navigabile. Puoi aprirlo nel browser: `backend/coverage/index.html`.
 
-La soglia minima di copertura configurata per le pull request è l'80%.
+La soglia minima di copertura configurata per le pull request è l'90%.
 
 ## Problemi comuni
 

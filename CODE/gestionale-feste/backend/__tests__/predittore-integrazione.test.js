@@ -32,14 +32,13 @@ function http_(method, path, body) {
 
 // ───── Verifica se il backend è raggiungibile ──────────────────────────────
 let backendOnline = false
-beforeAll(async () => {
-  try {
-    const r = await http_('GET', '/api/health')
-    backendOnline = r.status === 200
-  } catch {
-    backendOnline = false
-  }
-})
+try {
+  const r = await http_('GET', '/api/health')
+  backendOnline = r.status === 200
+} catch {
+  backendOnline = false
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test di integrazione HTTP — saltati se il backend non è attivo
