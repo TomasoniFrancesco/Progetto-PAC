@@ -2,5 +2,5 @@ projectKey=ProgettoPAC
 serverUrl=http://localhost:9000
 serverVersion=26.5.0.122743
 dashboardUrl=http://localhost:9000/dashboard?id=ProgettoPAC
-ceTaskId=32f87ea3-340a-48d2-b32f-9d152fadc38f
-ceTaskUrl=http://localhost:9000/api/ce/task?id=32f87ea3-340a-48d2-b32f-9d152fadc38f
+ceTaskId=dfbab94a-5014-4cc8-9f25-7f158437f2ee
+ceTaskUrl=http://localhost:9000/api/ce/task?id=dfbab94a-5014-4cc8-9f25-7f158437f2ee

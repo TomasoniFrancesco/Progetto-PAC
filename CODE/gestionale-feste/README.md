@@ -39,7 +39,7 @@ A quel punto aprite il browser:
 | Admin                 | http://localhost:5173/admin        |
 | Simulazione stampanti | http://localhost:5173/simulazione  |
 | Predittore scorte     | http://localhost:5173/predittore   |
-| API backend           | http://localhost:3001/api          |
+| API backend           | http://localhost:3001/api/health   |
 
 Dalla seconda volta in poi non serve più `--build`: basta `docker compose up`.
 
@@ -82,10 +82,26 @@ simulazione. Il codice è già pronto per stampanti termiche reali (vedi sotto).
 
 ## Test
 
-Due suite, senza dipendenze esterne, da lanciare col backend attivo:
+I test (unitari e di integrazione) utilizzano [Vitest](https://vitest.dev/).
+Per eseguire i test, puoi usare il contenitore Docker oppure Node.js locale:
 
-    docker compose exec backend node tests/test-smistatore.js
-    docker compose exec backend node tests/test-predittore.js
+    # Modalità Docker (consigliata per i test di integrazione HTTP)
+    docker compose exec backend npm test
+
+    # Modalità Node.js locale (nella cartella backend/)
+    npm install
+    npm test
+
+### Copertura del codice (Coverage)
+
+La misurazione della copertura è configurata con `c8/v8` per la cartella `services/` (dove risiede la logica algoritmica di smistamento e predizione). Per generare il report:
+
+    # Nella cartella backend/
+    npm run test:coverage
+
+Il comando stamperà una tabella riassuntiva nel terminale e genererà un report HTML navigabile. Puoi aprirlo nel browser: `backend/coverage/index.html`.
+
+La soglia minima di copertura configurata per le pull request è l'90%.
 
 ## Problemi comuni
 
