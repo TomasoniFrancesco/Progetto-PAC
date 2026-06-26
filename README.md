@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Gestionale Feste di Paese" width="220" />
+  <img src="logo.png" alt="Gestionale Feste di Paese" width="300" />
 
   # Gestionale Feste di Paese
 
