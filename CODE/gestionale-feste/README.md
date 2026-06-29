@@ -145,25 +145,4 @@ Per collegarsi con TablePlus, DBeaver o simili:
     password: gestionale_password
 
 Al primo avvio lo schema e i dati di esempio vengono creati da `database/init.sql`.
-
-## Struttura del progetto
-
-    gestionale-feste/
-    ├── docker-compose.yml
-    ├── database/
-    │   └── init.sql              schema + dati di esempio
-    ├── backend/
-    │   └── src/
-    │       ├── index.js          avvio Express, Socket.io e migrazioni
-    │       ├── routes/           endpoint HTTP (ordini, menu, scorte, ...)
-    │       ├── repositories/     accesso al database (query SQL)
-    │       └── services/         logica: smistatore, predittore, stampa
-    └── frontend/
-        └── src/
-            ├── pages/            Cassa, Admin, Simulazione, Predittore
-            ├── components/       componenti riusabili
-            ├── hooks/            hook condivisi
-            └── api/              client per le chiamate al backend
-
-Una nota tecnica: il proxy di Vite inoltra da solo le chiamate `/api` e
-`/socket.io` al backend, perciò nel frontend non serve indicare host e porta.
+s
