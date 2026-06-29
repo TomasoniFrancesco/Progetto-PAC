@@ -1,0 +1,806 @@
+\section{ITERAZIONE 2}
+
+In questa iterazione il sistema viene esteso con il primo dei due moduli
+algoritmici del progetto: lo \textbf{Smistatore Intelligente Multi-Reparto}, che
+introduce un instradamento adattivo delle comande verso i reparti di
+preparazione. L'iterazione comprende l'evoluzione dei diagrammi UML (con il nuovo
+sottosistema di smistamento e i nuovi componenti di gestione), la descrizione e
+l'analisi dell'algoritmo, la suite di test dedicata, le API esposte e una prima
+rilevazione delle metriche statiche del codice.
+
+% ============================================================================
+\subsection{Casi d'uso implementati}
+
+% Rinumerazione: nell'Iterazione 0 UC5a e' il caso base "Genera Stampe e Smistare".
+% Il modulo algoritmico che lo realizza in forma avanzata e' un caso d'uso distinto
+% (UC7), per evitare che lo stesso ID cambi significato tra iterazioni.
+\begin{table}[H]
+\centering
+\caption{Casi d'uso sviluppati nell'Iterazione 2}
+\label{tab:uc-iter2}
+\begin{tabular}{lll}
+\toprule
+\textbf{ID} & \textbf{Titolo} & \textbf{Relazione} \\
+\midrule
+UC7 & Smistatore Intelligente Multi-Reparto & realizza UC5a in forma avanzata \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Il caso d'uso UC5a (\textit{Genera Stampe e Smistare}), descritto nell'Iterazione~0
+e implementato nella sua forma base, viene qui realizzato in forma avanzata dal
+modulo algoritmico UC7. Per non sovraccaricare lo stesso identificatore con due
+significati, il modulo riceve un ID dedicato.
+
+% ============================================================================
+\subsection{Diagrammi UML}
+
+I diagrammi seguenti aggiornano quelli dell'Iterazione~1 per riflettere
+l'introduzione del sottosistema di smistamento e dei nuovi componenti di
+gestione. Per ciascun diagramma vengono evidenziate le differenze rispetto alla
+versione precedente.
+
+\subsubsection{UML Component Diagram}
+Rispetto all'Iterazione~1, l'architettura è stata ampliata e si articola ora in cinque sottosistemi principali: \textit{Database}, \textit{Application Logic}, \textit{Client}, \textit{Stampanti} e il nuovo sottosistema \textit{Smistamento}.
+
+Il sottosistema \textit{Application Logic} è organizzato in sei componenti. Accanto a \texttt{GestioneOrdini}, \texttt{GestioneMenu}, \texttt{GestioneScorte} e \texttt{GestioneStampe} sono formalizzate due nuove viste logiche: \texttt{GestioneAllergeni} e \texttt{GestioneConfigurazione}. La separazione è concettuale, finalizzata a distinguere la sola lettura sugli allergeni dall'amministrazione del menù; a livello implementativo entrambe confluiscono nel modulo \texttt{routes/menu.js}, condividendo lo stesso accesso al database. Il diagramma rappresenta pertanto tali componenti come viste sulla medesima sorgente dati, senza introdurre interfacce di persistenza fisicamente distinte.
+
+Nel sottosistema \textit{Client} le interfacce sono state aggiornate per riflettere questa separazione di responsabilità. L'interfaccia di scrittura \texttt{MenuMgmt} viene dismessa e sostituita dalla nuova interfaccia \texttt{ConfigurazioneMgmt}, riservata al componente \textit{AdminFrontEnd}, che assorbe la logica amministrativa relativa a inserimento, modifica ed eliminazione delle voci, impostazione delle scorte iniziali, configurazione delle stampanti e associazione degli allergeni. La \textit{CassaFrontEnd} mantiene l'interfaccia di sola lettura \texttt{MenuLettura} per la visualizzazione della griglia prodotti e ottiene accesso a \texttt{ScorteMgmt}, prima non disponibile. L'interfaccia \texttt{AllergeniMgmt}, esposta dalla vista logica \texttt{GestioneAllergeni}, è condivisa da entrambi i client in modalità di sola lettura.
+
+Infine, il flusso di stampa ha subito una revisione architetturale. \texttt{GestioneStampe} non comunica più direttamente con il sottosistema \textit{Stampanti}: è stato introdotto il sottosistema \textit{Smistamento}, contenente il componente \texttt{SistemaSmistamento}, che funge da dispatcher instradando le richieste verso i componenti \texttt{Stampante} tramite l'interfaccia \texttt{StampeMgmt}. La comunicazione tra \texttt{GestioneStampe} e \texttt{SistemaSmistamento} avviene attraverso l'interfaccia \texttt{SmistamentoMgmt}. Questa soluzione rende l'instradamento verso i reparti più scalabile e disaccoppiato rispetto all'approccio precedente.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{IT2_UML_Component_Diagram.png}
+    \caption{Diagramma dei Componenti UML  Iterazione 2}
+    \label{fig:uml_component}
+\end{figure}
+
+\subsubsection{UML Class Diagram Interface}
+
+\texttt{OrdiniMgmt} espone le operazioni per la gestione operativa e il ciclo di
+vita di una comanda: inserimento, rimozione e modifica quantitativa delle pietanze,
+inserimento di note libere per la cucina, gestione delle specifiche di asporto,
+applicazione di sconti, calcolo del resto e procedure di conferma o annullamento
+dell'ordine.
+
+% COERENZA: l'interfaccia di lettura si chiama MenuLettura.
+\texttt{MenuLettura} funge da modulo di sola consultazione ad uso della cassa,
+esponendo metodi per l'ottenimento del menù e il filtraggio delle voci per
+categoria o per settore. L'intera logica amministrativa e di scrittura è invece
+delegata alla nuova interfaccia \texttt{ConfigurazioneMgmt}, riservata al
+backoffice, che espone inserimento, modifica ed eliminazione fisica delle pietanze,
+impostazione delle scorte iniziali, configurazione e recupero delle stampanti di
+reparto e associazione degli allergeni ai singoli piatti.
+
+La nuova interfaccia \texttt{AllergeniMgmt} rende fruibili le informazioni sulle
+intolleranze alimentari, con metodi per consultare e stampare il report degli
+allergeni sia per una specifica pietanza sia a livello globale per l'intero menù,
+su entrambi i front-end.
+
+L'interfaccia \texttt{ScorteMgmt} è stata potenziata per garantire la consistenza
+dell'inventario durante il servizio: oltre a verificare la disponibilità dei piatti,
+espone i metodi per decrementare le scorte residue e per gestire i contatori
+aggregati associati ai piatti a disponibilità limitata.
+
+Infine, l'invio alle stampanti è stato disaccoppiato tramite l'interfaccia
+\texttt{SmistamentoMgmt}, legata al rispettivo sottosistema: essa si occupa
+dell'elaborazione ad alto livello dei flussi di stampa (generazione e
+instradamento dei biglietti verso i reparti corretti, produzione della copia
+cliente, notifica dei piatti pronti per l'asporto). A valle, l'interfaccia
+\texttt{StampeMgmt} gestisce la comunicazione a basso livello con i dispositivi
+fisici, esponendo i metodi per l'invio del file di stampa e per il controllo dello
+stato hardware delle stampanti.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{IT2_UML_Class_Diagram_Interface.png}
+    \caption{Diagramma UML delle Classi per interfacce  Iterazione 2}
+    \label{fig:uml_classes_interface}
+\end{figure}
+
+\subsubsection{UML Class Diagram per tipo di dato}
+Il Class Diagram per tipo di dato rappresenta le entità del dominio e i relativi
+attributi, in corrispondenza diretta con lo schema relazionale definito in
+\texttt{database/init.sql}: nomi e attributi coincidono con quelli effettivi delle
+tabelle, così che diagramma e database descrivano la stessa struttura. Le entità
+sono raggruppate per ambiti logici.
+
+\paragraph{Menù.} L'entità \texttt{Voce} costituisce il cuore del catalogo, con
+\texttt{codice}, \texttt{nome}, \texttt{prezzo}, \texttt{categoria},
+\texttt{settore\_visualizzazione}, \texttt{settore\_stampa}, \texttt{colore\_tasto},
+\texttt{visibile}, \texttt{asportabile}, \texttt{modalita\_stampa},
+\texttt{copia\_scontrino\_cliente} e i parametri usati dai moduli algoritmici:
+\texttt{tempo\_preparazione}, \texttt{tempo\_riapprovvigionamento} e
+\texttt{priorita\_voce}. Le pietanze aggregate (menù composti) sono modellate dalla
+relazione \texttt{VoceComposizione} (\texttt{voce\_aggregata\_id},
+\texttt{voce\_componente\_id}).
+
+\paragraph{Disponibilità.} La classe \texttt{Scorta} (\texttt{voce\_id},
+\texttt{quantita}, \texttt{soglia\_giallo}, \texttt{soglia\_rosso},
+\texttt{attiva}) mantiene la disponibilità per singola voce, con le soglie di
+allerta come propri attributi; \texttt{ScortaStorico} (\texttt{voce\_id},
+\texttt{quantita}, \texttt{data\_rifornimento}, \texttt{note}) registra i
+rifornimenti. Gli ingredienti condivisi sono gestiti da
+\texttt{ContatoreAggregato} (\texttt{nome}, \texttt{quantita}) e dalla relazione
+\texttt{VoceContatore} (\texttt{voce\_id}, \texttt{contatore\_id}).
+
+\paragraph{Comande.} L'entità \texttt{Ordine} (\texttt{tavolo}, \texttt{stato},
+\texttt{asporto}, \texttt{sconto}, \texttt{tipo\_sconto}, \texttt{totale},
+\texttt{importo\_pagato}, \texttt{timestamp}, \texttt{utente\_id}) traccia stato e
+dati fiscali; \texttt{OrdineRiga} (\texttt{ordine\_id}, \texttt{voce\_id},
+\texttt{quantita}) mappa le singole quantità; \texttt{OrdineRigaNota}
+(\texttt{riga\_id}, \texttt{numero\_porzione}, \texttt{testo},
+\texttt{costo\_aggiuntivo}) gestisce le note per porzione e
+\texttt{NotaPreimpostata} (\texttt{voce\_id}, \texttt{testo},
+\texttt{costo\_aggiuntivo}) le varianti rapide.
+
+\paragraph{Allergeni.} L'entità \texttt{Allergene} (\texttt{nome}, \texttt{descr})
+è associata alle voci tramite la relazione \texttt{VoceAllergene}
+(\texttt{voce\_id}, \texttt{allergene\_id}).
+
+\paragraph{Stampa.} L'entità \texttt{Stampante} (\texttt{reparto}, \texttt{nome},
+\texttt{indirizzo\_ip}, \texttt{porta}, \texttt{modello}, \texttt{primaria},
+\texttt{attiva}, \texttt{stato}) descrive i dispositivi di reparto, mentre
+\texttt{StampaEseguita} (\texttt{ordine\_id}, \texttt{stampante\_id},
+\texttt{reparto}, \texttt{payload}, \texttt{esito}, \texttt{durata\_ms},
+\texttt{timestamp}) costituisce l'audit log delle stampe inviate.
+
+\paragraph{Configurazione.} L'entità \texttt{Configurazione} (\texttt{chiave},
+\texttt{valore}) conserva i parametri runtime usati dai moduli algoritmici (es.\
+soglie e finestre temporali).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{IT2_UML_Class_Diagram_tipo_di_dato.png}
+    \caption{Diagramma UML di Classe per tipo di dato  Iterazione 2}
+    \label{fig:uml_classes_dato}
+\end{figure}
+
+\newpage
+\subsubsection{UML Deployment Diagram}
+
+Il nodo \textit{FesteDB} ospita il database relazionale e funge da sorgente dati
+centrale. Il nodo centrale \textit{Web Server} ospita il core applicativo,
+organizzato nei moduli di gestione (\texttt{GestioneOrdini}, \texttt{GestioneMenu},
+\texttt{GestioneScorte}, \texttt{GestioneAllergeni}, \texttt{GestioneConfigurazione}
+e \texttt{GestioneStampe}); allergeni e configurazione condividono il modulo
+\texttt{routes/menu.js} e quindi lo stesso accesso al database. All'interno del nodo
+si nota una dipendenza logica tra \texttt{GestioneMenu} e \texttt{GestioneScorte}.
+
+% COERENZA: la cassa accede a MenuLettura (lettura), non a MenuMgmt.
+Il nodo \textit{Client} ospita le applicazioni di frontend, \texttt{WebAppCassa} e
+\texttt{WebAppBackOffice}. La comunicazione tra Client e Web Server è mediata dalle
+interfacce aggiornate: la cassa accede a \texttt{OrdiniMgmt}, \texttt{MenuLettura},
+\texttt{ScorteMgmt} e \texttt{AllergeniMgmt}; il backoffice si affida anch'esso ad
+\texttt{AllergeniMgmt} e utilizza in modo esclusivo \texttt{ConfigurazioneMgmt} per
+l'amministrazione centralizzata.
+
+Infine, l'infrastruttura di stampa si divide su due nodi logici distinti. Il Web
+Server comunica tramite l'interfaccia \texttt{SmistamentoMgmt} con il nuovo nodo
+\textit{Smistamento}, che ospita il componente \texttt{SistemaSmistamento}
+delegato alla logica di routing. Questo nodo comunica a sua volta con i dispositivi
+fisici allocati nel nodo \textit{Stampante} tramite l'interfaccia a basso livello
+\texttt{StampeMgmt}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{IT2_UML_Deployment_Diagram.png}
+    \caption{Diagramma UML di Deployment  Iterazione 2}
+    \label{fig:uml_deployment}
+\end{figure}
+
+% ============================================================================
+\newpage
+\subsection{Algoritmo: Smistatore Intelligente Multi-Reparto}
+
+\subsubsection*{Introduzione}
+
+L'algoritmo \textbf{Smistatore Intelligente Multi-Reparto} bilancia il carico
+operativo tra i reparti di un sistema di gestione ordini per la ristorazione.
+
+Nei sistemi POS tradizionali, ogni voce d'ordine viene instradata verso un reparto
+fisso (\texttt{settore\_stampa}), indipendentemente dal carico corrente. Questo
+genera due problemi:
+
+\begin{itemize}
+    \item \textbf{Saturazione asimmetrica:} tutti gli ordini di un reparto
+    confluiscono su di esso anche quando è sovraccarico.
+    \item \textbf{Mancanza di adattività:} il sistema ignora il tempo di
+    preparazione residuo, la quantità richiesta, lo stato delle stampanti e la
+    disponibilità delle scorte.
+\end{itemize}
+
+L'algoritmo introduce un modello di scoring dinamico che valuta, per ogni task, il
+reparto ottimale compatibile in base al carico reale istantaneo
+(Figura~\ref{fig:flusso_smistatore}).
+
+\paragraph{Attori coinvolti}
+
+\begin{itemize}
+    \item \textbf{Sistema POS:} emette gli ordini con i relativi parametri
+    (timestamp, priorità, quantità).
+    \item \textbf{Reparti operativi:} cucina, bar, griglia destinatari delle
+    comande.
+    \item \textbf{Stampanti / Dashboard:} destinatari fisici; il sistema gestisce
+    fallback se offline.
+    \item \textbf{Cassa:} riceve notifiche di blocco per scorta insufficiente.
+\end{itemize}
+
+\paragraph{Trigger e postcondizioni}
+
+\begin{description}
+    \item[Trigger:] Ricezione di un ordine con una o più righe (pietanze) e
+    relativi metadati.
+    \item[Postcondizione:] Per ogni riga valida: assegnazione al reparto con carico
+    minore compatibile, generazione della comanda separata per reparto, invio alla
+    stampante o dashboard corretta.
+\end{description}
+
+\subsubsection*{Parametri di Input}
+
+Ogni riga d'ordine viene convertita in un \textit{task di preparazione}. La
+Tabella~\ref{tab:parametri} riporta i parametri considerati per routing e ranking.
+
+\begin{table}[H]
+\centering
+\caption{Parametri di input dell'algoritmo}
+\label{tab:parametri}
+\begin{tabular}{>{\ttfamily}lp{9cm}}
+\toprule
+\normalfont\textbf{Parametro} & \textbf{Descrizione} \\
+\midrule
+settore\_stampa        & Reparto primario configurato nel menu; punto di partenza per i reparti compatibili. \\
+numero\_task\_in\_coda & Task in attesa per ogni reparto. Componente principale del carico. \\
+tempo\_preparazione    & Tempo medio stimato di preparazione (secondi). \\
+quantità               & Porzioni richieste. Incide sul carico e sul raggruppamento batch. \\
+timestamp              & Marca temporale di arrivo; usata per urgenza e ordinamento. \\
+stato\_stampante       & Online/offline. Attiva il fallback se offline. \\
+disponibilità\_scorte  & Flag o quantità residua. Se insufficiente, il task viene bloccato. \\
+priorità\_ordine       & Categoria: tavolo, asporto, urgenza. Peso nel ranking $P$. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{Passi dell'Algoritmo}
+
+L'algoritmo si articola in undici passi sequenziali, con diramazioni per la gestione
+dei casi limite. L'obiettivo è minimizzare il carico massimo tra i reparti e
+massimizzare la reattività.
+
+\paragraph{Passo 1  Ricezione e lettura righe ordine}
+All'arrivo di un ordine, il sistema estrae da ogni riga il \texttt{settore\_stampa},
+il timestamp, la priorità e la quantità. Ogni riga diventa un task di preparazione
+indipendente.
+
+\paragraph{Passo 2  Conversione in task di preparazione}
+Ogni riga viene normalizzata in un oggetto task con struttura uniforme,
+indipendentemente dal tipo di pietanza o reparto.
+
+\paragraph{Passo 3  Verifica disponibilità scorte}
+Prima del routing, il sistema verifica che la scorta sia sufficiente per la quantità
+richiesta. Questo \textit{guard} evita di occupare capacità di reparto inutilmente.
+Se la scorta è insufficiente, il task viene bloccato con notifica alla cassa; le
+restanti righe proseguono normalmente.
+
+\paragraph{Passo 4  Identificazione reparti compatibili}
+Per ogni task con scorta sufficiente, il sistema individua i reparti in grado di
+gestire la pietanza: il reparto primario (\texttt{settore\_stampa}) più eventuali
+alternative configurate (es.\ una pietanza fritta gestibile sia da cucina che da
+griglia).
+
+\paragraph{Passo 5  Calcolo del carico per ogni reparto}
+Per ciascun reparto compatibile viene calcolato un punteggio di carico:
+
+\begin{equation}
+\label{eq:carico}
+\mathtt{carico\_reparto} = n_{\text{task}} \times t_{\text{prep\_residuo}} \times \alpha_{\text{stress}} \times \beta_{\text{stampante}}
+\end{equation}
+
+\noindent dove $n_{\text{task}}$ è il numero di task in coda, $t_{\text{prep\_residuo}}$
+è la somma del tempo residuo di tutti i task (secondi), $\alpha_{\text{stress}} \in
+[1.0,\,1.5]$ è il moltiplicatore per reparto in stress e $\beta_{\text{stampante}}
+\in [1.0,\,2.0]$ è il moltiplicatore per stampante offline. Nell'implementazione,
+$\alpha_{\text{stress}} = 1.3$ si attiva oltre la soglia di $5$ task in coda e
+$\beta_{\text{stampante}} = 2.0$ a stampante offline.
+
+\paragraph{Passo 6  Selezione del reparto con carico minimo}
+Se il task è compatibile con più reparti, il sistema sceglie quello con
+\texttt{carico\_reparto} più basso (selezione greedy). In caso di parità, prevale
+il reparto con il timestamp dell'ultimo task più vecchio.
+
+\begin{equation}
+\label{eq:routing}
+\mathtt{reparto\_scelto} = \arg\min_{r \,\in\, \text{reparti\_compatibili}} \mathtt{carico\_reparto}(r)
+\end{equation}
+
+Se tutti i reparti superano la soglia di saturazione, il task viene comunque
+assegnato a quello meno saturo. Con un solo reparto disponibile, l'algoritmo degrada
+a FIFO con priorità per massimo tempo di attesa.
+
+\paragraph{Passo 7  Calcolo del ranking \texorpdfstring{$P$}{P}}
+Una volta assegnato il task, il ranking $P$ ne determina l'ordine nella coda (valore
+più alto = elaborazione anticipata):
+
+\begin{equation}
+\label{eq:ranking}
+P = A \cdot t_{\text{attesa}} + B \cdot \text{priorità\_asporto} + C \cdot \text{semplicità} - D \cdot \text{carico} - E \cdot \text{rischio\_scorte}
+\end{equation}
+
+\begin{table}[H]
+\centering
+\caption{Termini della formula di ranking $P$}
+\label{tab:ranking}
+\begin{tabular}{cl}
+\toprule
+\textbf{Termine} & \textbf{Significato} \\
+\midrule
+$A \cdot t_{\text{attesa}}$             & Tempo dall'arrivo dell'ordine (urgenza crescente). \\
+$B \cdot \text{priorità\_asporto}$      & Bonus per ordini asporto/urgenza con tempi vincolati. \\
+$C \cdot \text{semplicità}$             & Bonus per pietanze rapide; libera il reparto nel picco. \\
+$-D \cdot \text{carico}$                & Penalità per reparti già in stress. \\
+$-E \cdot \text{rischio\_scorte}$       & Penalità per scorte prossime all'esaurimento. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Passo 8  Raggruppamento per reparto e ottimizzazione batch}
+I task di uno stesso ordine vengono raggruppati per reparto, producendo una comanda
+separata per ciascuno. Pietanze identiche in arrivo entro la finestra di batch
+(\texttt{FINESTRA\_BATCH\_MS}, pari a $30$ secondi nell'implementazione) vengono
+aggregate in un unico task cumulato.
+
+\paragraph{Passo 9  Generazione comande separate}
+Per ogni reparto coinvolto viene generata una comanda indipendente. Esempio:
+l'ordine \#52 (birra media, costine, patatine, tiramisù) produce tre comande:
+\textsc{Bar}, \textsc{Griglia} e \textsc{Cucina}.
+
+\paragraph{Passo 10  Ordinamento per priorità e invio}
+Le comande vengono ordinate per $P$ decrescente e inviate alla stampante del
+reparto. Se la stampante è offline, si usa una stampante di fallback; in assenza di
+fallback, la comanda appare nella dashboard admin con notifica e richiesta di
+conferma manuale.
+
+\paragraph{Passo 11  Loop su task residui}
+Il sistema verifica se restano task non processati. In caso affermativo il flusso
+ritorna al Passo~7; il ciclo termina quando tutti i task dell'ordine sono stati
+inviati.
+
+\subsubsection*{Casi Limite e Comportamenti Attesi}
+
+\begin{table}[H]
+\centering
+\caption{Casi limite e strategie di gestione}
+\label{tab:casislimite}
+\begin{tabular}{lp{4.5cm}p{5.5cm}}
+\toprule
+\textbf{Caso limite} & \textbf{Condizione} & \textbf{Comportamento} \\
+\midrule
+Stampante offline
+    & La stampante del reparto non risponde.
+    & Fallback su stampante secondaria o dashboard admin con notifica. \\
+Reparto saturo
+    & Tutti i reparti compatibili oltre la soglia.
+    & Assegnazione al meno saturo; degrado a FIFO con priorità attesa. \\
+Scorta insufficiente
+    & Quantità disponibile $<$ richiesta.
+    & Task bloccato; notifica alla cassa; altre righe non impattate. \\
+Ordine misto
+    & Pietanze per reparti diversi.
+    & Sotto-comande indipendenti per ciascun reparto. \\
+Picco improvviso
+    & $N$ ordini dello stesso piatto in breve intervallo.
+    & Raggruppamento batch con quantità cumulata. \\
+Reparto unico
+    & Un solo reparto compatibile operativo.
+    & Routing forzato; FIFO con priorità per attesa massima. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{Analisi di Complessità}
+
+Siano $n$ il numero di reparti, $m$ il numero di task in coda, $k$ il numero di
+righe valide nell'ordine.
+
+\begin{table}[H]
+\centering
+\caption{Complessità per fase}
+\label{tab:complessita}
+\begin{tabular}{ll}
+\toprule
+\textbf{Fase} & \textbf{Complessità} \\
+\midrule
+Lettura righe ordine                   & $O(k)$ \\
+Verifica scorte (per task)             & $O(1)$ \\
+Identificazione reparti compatibili    & $O(n)$ \\
+Calcolo \texttt{carico\_reparto}       & $O(n \cdot m)$ \\
+Selezione $\min(\text{carico})$        & $O(n)$ \\
+Calcolo ranking $P$                    & $O(1)$ \\
+Ordinamento comande                    & $O(k \log k)$ \\
+Invio comanda (per reparto)            & $O(1)$ \\
+\midrule
+\textbf{Totale per ordine}             & $\boldsymbol{O(n \cdot m + k \log k)}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In pratica $n \leq 10$ e $k \leq 20$: l'algoritmo è estremamente efficiente. Il
+termine dominante è $O(n \cdot m)$, dove $m$ dipende dalla lunghezza delle code a
+runtime.
+
+\subsubsection*{Pseudocodice}
+
+Le Figure~\ref{alg:routeorder} e~\ref{alg:subfunzioni} mostrano lo pseudocodice
+completo.
+
+\begin{figure}[H]
+\begin{algorithmic}[1]
+\Procedure{RouteOrder}{$\text{order}$}
+    \State $\text{tasks} \gets [\,]$
+    \For{$\text{riga} \in \text{order.righe}$} \Comment{$O(k)$}
+        \State $\text{task} \gets \Call{BuildTask}{\text{riga},\;\text{order.timestamp},\;\text{order.priorità}}$
+        \State $\text{tasks}.\text{append}(\text{task})$
+    \EndFor
+    \For{$\text{task} \in \text{tasks}$} \Comment{$O(k)$}
+        \If{$\neg\Call{ScorteDisponibili}{\text{task}}$}
+            \State $\Call{Blocca}{\text{task}}$;\; $\Call{NotificaCassa}{\text{task}}$
+            \State $\text{tasks}.\text{remove}(\text{task})$
+        \EndIf
+    \EndFor
+    \State $\text{comande} \gets \{\}$
+    \For{$\text{task} \in \text{tasks}$} \Comment{$O(k \cdot n \cdot m)$}
+        \State $\text{reparti} \gets \Call{GetRepartiCompatibili}{\text{task}}$ \Comment{$O(n)$}
+        \State $r \gets \Call{SelectMinCarico}{\text{reparti}}$ \Comment{$O(n \cdot m)$}
+        \State $\text{task}.P \gets \Call{CalcolaRanking}{\text{task},\;r}$ \Comment{$O(1)$}
+        \State $\text{comande}[r].\text{append}(\text{task})$
+    \EndFor
+    \State $\text{comande} \gets \Call{RaggruppaEBatch}{\text{comande}}$ \Comment{$O(k \log k)$}
+    \For{$r \in \Call{Keys}{\text{comande}}$}
+        \State $\text{task\_list} \gets \Call{SortByP}{\text{comande}[r]}$ \Comment{$O(k \log k)$}
+        \State $\text{comanda} \gets \Call{GeneraComanda}{r,\;\text{task\_list}}$
+        \State $\Call{InviaComanda}{\text{comanda},\;r}$
+    \EndFor
+\EndProcedure
+\end{algorithmic}
+\caption{Pseudocodice funzione principale \textsc{RouteOrder}}
+\label{alg:routeorder}
+\end{figure}
+
+\begin{figure}[H]
+\begin{algorithmic}[1]
+\Procedure{SelectMinCarico}{$\text{reparti}$} \Comment{$O(n \cdot m)$}
+    \State $\text{best} \gets \textbf{null}$;\quad $\text{best\_score} \gets +\infty$
+    \For{$r \in \text{reparti}$}
+        \State $\text{score} \gets \displaystyle\sum_{\text{task} \in r.\text{coda}} \text{task}.t_{\text{prep\_residuo}}$
+        \State $\text{score} \gets \text{score} \times \alpha_{\text{stress}}(r) \times \beta_{\text{stampante}}(r)$
+        \If{$\text{score} < \text{best\_score}$}
+            \State $\text{best} \gets r$;\; $\text{best\_score} \gets \text{score}$
+        \EndIf
+    \EndFor
+    \State \Return $\text{best}$
+\EndProcedure
+\Statex
+\Procedure{CalcolaRanking}{$\text{task},\;r$} \Comment{$O(1)$}
+    \State $t_{\text{attesa}} \gets \Call{Now}{} - \text{task.timestamp}$
+    \State $\pi_a \gets [\text{task.priorità} = \textsc{Asporto}]\;?\;1.0 : 0.0$
+    \State $s \gets 1.0\;/\;(\text{task}.t_{\text{prep}} + 1)$
+    \State \Return $A \cdot t_{\text{attesa}} + B \cdot \pi_a + C \cdot s - D \cdot \text{carico}(r) - E \cdot \text{rischio\_scorte}(\text{task})$
+\EndProcedure
+\end{algorithmic}
+\caption{Pseudocodice funzioni ausiliarie}
+\label{alg:subfunzioni}
+\end{figure}
+
+\clearpage
+\begin{figure}[H]
+    \centering
+    \includegraphics[height=0.90\textheight, keepaspectratio]{smistatore.png}
+    \caption{Diagramma di flusso  Smistatore Intelligente Multi-Reparto}
+    \label{fig:flusso_smistatore}
+\end{figure}
+
+\clearpage
+% ============================================================================
+\subsection{Test}
+
+\subsubsection{Analisi statica del codice}
+
+Il backend è stato sottoposto ad analisi statica con gli stessi strumenti usati nel
+resto del progetto: la \textbf{complessità ciclomatica} delle funzioni è stata
+misurata con la regola \texttt{complexity} di \textbf{ESLint}, mentre
+l'\textbf{accoppiamento} tra moduli e le dipendenze circolari sono stati analizzati
+con \textbf{madge}. Per \emph{isolare} il contributo dello Smistatore alla
+complessità del sistema, l'analisi confronta il backend \emph{base} (privo di
+entrambi gli algoritmi) con lo stesso backend a cui è stato aggiunto il \emph{solo}
+Smistatore, tenendo temporaneamente fuori il Predittore: la differenza tra i due
+stati è dunque attribuibile interamente allo Smistatore.
+
+\begin{table}[H]
+\centering
+\caption{Metriche statiche del backend: base contro stato con il solo Smistatore}
+\label{tab:analisi-smistatore}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metrica} (backend, \texttt{src/}) & \textbf{Base} & \textbf{Con Smistatore} & \textbf{$\Delta$} \\
+\midrule
+Complessità ciclomatica massima        & 51 & 51 & $=$ \\
+Funzioni con complessità ciclomatica ${}>{}$ 15 & 4 & 4 & $=$ \\
+Funzioni totali analizzate             & 67 & 85 & $+18$ \\
+Moduli accoppiati a \texttt{db.js} ($C_a$) & 7 & 8 & $+1$ \\
+Dipendenze circolari                   & 0 & 0 & $=$ \\
+Righe di codice (SLOC, escluse vuote e commenti) & 1\,506 & 1\,732 & $+226$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% "parsaFlusso" e' il nome REALE della funzione in services/escpos-emulator.js.
+Lo Smistatore introduce 18 nuove funzioni e 226 righe di codice, senza generare
+dipendenze circolari. Tutte le sue funzioni restano a bassa complessità: la più
+impegnativa è \texttt{rigaToTasks} (15), che converte le righe d'ordine in task,
+mentre la funzione principale di routing \texttt{routeOrder} si ferma a 6. La
+complessità ciclomatica massima del sistema resta invariata (51, relativa al parser
+ESC/POS \texttt{parsaFlusso} nell'emulatore, estraneo allo Smistatore): l'algoritmo
+non peggiora cioè il punto più critico del codice, e nessuna delle funzioni
+introdotte supera la soglia di 15. La complessità $51$ di \texttt{parsaFlusso} è un
+debito tecnico noto, accettato in questa fase perché il parser è stabile e isolato,
+e affrontato con un refactoring dedicato nell'Iterazione~3. I tre grafici seguenti
+visualizzano l'impatto dello Smistatore.
+
+\definecolor{statBase}{HTML}{D45454}
+\definecolor{statAlg}{HTML}{5BA85E}
+\pgfplotsset{
+    statbar/.style={
+        xbar, width=\linewidth, bar width=7pt, enlarge y limits=0.22, xmin=0,
+        axis x line*=bottom, axis y line*=left, ytick=data,
+        nodes near coords, nodes near coords align={horizontal},
+        every node near coord/.append style={font=\scriptsize},
+        legend style={at={(0.97,0.05)}, anchor=south east, font=\small, draw=none},
+        legend cell align={left}, tick label style={font=\small}, xlabel style={font=\small},
+    }
+}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}
+        \begin{axis}[statbar, height=6cm, xmax=58,
+            xlabel={Complessità ciclomatica (CC)},
+            symbolic y coords={p1,p2,p3,p4,p5},
+            yticklabels={routeOrder, batchPerReparto, rigaToTasks,
+                         avviaServer, parsaFlusso},
+        ]
+            \addplot[fill=statBase, draw=statBase] coordinates {(0,p1)(0,p2)(0,p3)(31,p4)(51,p5)};
+            \addplot[fill=statAlg, draw=statAlg]   coordinates {(6,p1)(7,p2)(15,p3)(31,p4)(51,p5)};
+            \legend{Base, Con Smistatore}
+        \end{axis}
+    \end{tikzpicture}%
+    }
+    \caption{Complessità ciclomatica delle funzioni principali del backend. Le tre
+    funzioni in basso (\texttt{routeOrder}, \texttt{batchPerReparto},
+    \texttt{rigaToTasks}) sono introdotte dallo Smistatore e restano tutte sotto la
+    soglia di 15; le altre, legate all'infrastruttura di base, sono invariate.}
+    \label{fig:cc-smistatore}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}
+        \begin{axis}[statbar, height=4.2cm, xmax=14,
+            xlabel={Conteggio},
+            symbolic y coords={s1,s2,s3},
+            yticklabels={Funzioni con CC\,$>$\,15, Moduli totali,
+                         Moduli accoppiati al DB},
+        ]
+            \addplot[fill=statBase, draw=statBase] coordinates {(4,s1)(10,s2)(7,s3)};
+            \addplot[fill=statAlg, draw=statAlg]   coordinates {(4,s1)(12,s2)(8,s3)};
+            \legend{Base, Con Smistatore}
+        \end{axis}
+    \end{tikzpicture}%
+    }
+    \caption{Metriche strutturali prima e dopo l'aggiunta del solo Smistatore: il
+    modulo aggiunge due moduli al grafo (route e service), di cui uno (la route)
+    accoppiato al database.}
+    \label{fig:strutt-smistatore}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}
+        \begin{axis}[statbar, height=3.4cm, xmax=1850,
+            xlabel={Righe di codice (SLOC)},
+            symbolic y coords={d1},
+            yticklabels={Backend (\texttt{src/})},
+        ]
+            \addplot[fill=statBase, draw=statBase] coordinates {(1506,d1)};
+            \addplot[fill=statAlg, draw=statAlg]   coordinates {(1732,d1)};
+            \legend{Base, Con Smistatore}
+        \end{axis}
+    \end{tikzpicture}%
+    }
+    \caption{Dimensione del backend in righe di codice (SLOC) prima e dopo
+    l'aggiunta del solo Smistatore.}
+    \label{fig:sloc-smistatore}
+\end{figure}
+
+\subsubsection{Test automatizzati}
+
+Per validare la correttezza dell'algoritmo è stata sviluppata una suite di test
+automatizzati con \textbf{Vitest}, eseguibile con \texttt{npm test}. La suite
+comprende \textbf{test unitari}, che esercitano in isolamento le funzioni pure di
+calcolo del modulo, e \textbf{test di integrazione HTTP}, che verificano il
+comportamento end-to-end sulle API REST con il backend in esecuzione (saltati
+automaticamente quando il server non è raggiungibile).{fig:test-smistatore}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{IT2_test_smistatore.png}
+    \caption{Esecuzione della suite unitaria dello Smistatore con Vitest:
+             26/26 test unitari superati}
+    \label{fig:test-smistatore}
+\end{figure}
+
+I test unitari sono organizzati per componente dell'algoritmo:
+
+\begin{enumerate}
+    \item \textbf{Formula del carico.} Verificano il calcolo $n \times t_{prep}
+    \times \alpha \times \beta$, con l'attivazione del fattore di stress
+    $\alpha=1.3$ oltre la soglia di 5 task e del fattore $\beta=2.0$ a stampante
+    offline.
+
+    \item \textbf{Selezione del reparto} (\texttt{selectMinCarico}). Validano la
+    scelta greedy del reparto a carico minore, il tie-break sul task più vecchio a
+    parità di carico e il fallback quando tutte le stampanti sono offline.
+
+    \item \textbf{Routing e batching} (\texttt{routeOrder}). Coprono la generazione
+    di un task per riga, il blocco delle righe a scorta insufficiente (mentre le
+    altre proseguono), l'esplosione delle modalità \emph{singola\_singola} /
+    \emph{singola\_multipla} e il raggruppamento di più voci dello stesso reparto in
+    un'unica comanda.
+
+    \item \textbf{Ranking $P$.} Verificano il bonus di priorità per gli ordini da
+    asporto ($B=50$) e la penalizzazione per il rischio di esaurimento scorte
+    ($E=30$).
+
+    \item \textbf{Bilanciamento e fallback.} Validano la distribuzione del carico su
+    reparti con fallback bidirezionale (6 ordini ripartiti 3-3) e il re-routing
+    automatico verso il reparto alternativo quando la stampante primaria è offline.
+\end{enumerate}
+
+
+\subsubsection{API esposte}
+
+Gli endpoint seguenti supportano lo Smistatore e la catena di stampa; valgono le
+convenzioni REST definite nell'Iterazione~1. Le operazioni di scrittura
+(\POST, \PUT) sono verificate tramite Postman, di cui si riporta richiesta e
+risposta.
+
+\paragraph{Smistatore}\mbox{}\\
+
+Espone lo stato interno dello \textbf{Smistatore Intelligente Multi-Reparto}
+(UC7) e permette di aggiornare a runtime le configurazioni di fallback e lo stato
+delle stampanti, senza riavviare il server.
+
+\apicall{\GET~\texttt{/api/smistatore/stato}}
+
+Snapshot delle code di preparazione per ogni reparto attivo: numero di task in coda,
+carico stimato e stato della stampante associata.
+
+\begin{lstlisting}[style=json]
+{
+  "cucina":  { "task_in_coda": 3, "carico": 420, "stato_stampante": "online"  },
+  "bar":     { "task_in_coda": 1, "carico":  60, "stato_stampante": "online"  },
+  "griglia": { "task_in_coda": 0, "carico":   0, "stato_stampante": "offline" }
+}
+\end{lstlisting}
+
+\apicall{\POST~\texttt{/api/smistatore/completa}}
+
+Rimuove un task dalla coda di un reparto una volta che la preparazione è completata.
+Campi obbligatori: \texttt{reparto} e \texttt{voce\_id}. Campo opzionale:
+\texttt{ordine\_id} per identificare univocamente il task in caso di omonimi.
+
+\postman{i2-smist-completa.png}{Postman  \texttt{POST /api/smistatore/completa}}
+
+\apicall{\PUT~\texttt{/api/smistatore/stampante/:reparto}}
+
+Imposta lo stato (\texttt{online} / \texttt{offline}) della stampante di un reparto,
+aggiornando sia la memoria interna dello smistatore che il database. Se la stampante
+passa a \texttt{offline}, i task successivi vengono automaticamente instradati al
+fallback configurato.
+
+\postman{i2-smist-stampante.png}{Postman  \texttt{PUT /api/smistatore/stampante/:reparto}}
+
+\apicall{\PUT~\texttt{/api/smistatore/fallback/:reparto}}
+
+Configura i reparti alternativi a cui instradare i task quando la stampante del
+reparto primario è offline. Il campo \texttt{fallback} è un array di nomi reparto.
+
+\postman{i2-smist-fallback.png}{Postman  \texttt{PUT /api/smistatore/fallback/:reparto}}
+
+\paragraph{Stampe}\mbox{}\\
+
+Gestisce lo storico delle stampe ESC/POS inviate, la ristampa di comande e il
+controllo dell'emulatore TCP usato in modalità demo/sviluppo.
+
+\apicall{\GET~\texttt{/api/stampe}}
+
+Storico delle stampe eseguite. Con il parametro \texttt{?ordine\_id=N} restituisce
+solo le stampe relative a quell'ordine; senza parametro restituisce le ultime 100 in
+ordine cronologico decrescente.
+
+\begin{lstlisting}[style=json]
+[
+  { "id": 1, "ordine_id": 42, "reparto": "cucina", "esito": "ok",
+    "durata_ms": 85, "timestamp": "2026-05-26T20:14:00.000Z",
+    "stampante_nome": "Cucina A", "indirizzo_ip": "127.0.0.1", "porta": 9100 }
+]
+\end{lstlisting}
+
+\apicall{\GET~\texttt{/api/stampe/recenti}}
+
+Ultime $N$ stampe eseguite (default 50, massimo 500) con parametro opzionale
+\texttt{?limit=N}. Versione alleggerita senza payload per uso nelle dashboard.
+
+\begin{lstlisting}[style=json]
+[
+  { "id": 5, "ordine_id": 44, "reparto": "bar", "esito": "ok",
+    "durata_ms": 42, "timestamp": "2026-05-26T20:15:10.000Z",
+    "stampante_nome": "Stampante Bar" }
+]
+\end{lstlisting}
+
+\apicall{\POST~\texttt{/api/stampe/:id/ristampa}}
+
+Reinvia alla stampante la comanda corrispondente a una stampa già registrata,
+riutilizzando il payload JSON salvato. Risposta 400 se il payload non è disponibile;
+404 se la stampa non esiste.
+
+\begin{lstlisting}[style=json]
+{ "ristampa": { "esito": "ok", "durata_ms": 91 } }
+\end{lstlisting}
+
+\apicall{\POST~\texttt{/api/stampe/test/:id}}
+
+Invia una pagina di test alla stampante identificata da \texttt{id}. Utile per
+verificare la connettività prima dell'evento.
+
+\begin{lstlisting}[style=json]
+{ "esito": "ok", "stampante_id": 2, "durata_ms": 120 }
+\end{lstlisting}
+
+\apicall{\POST~\texttt{/api/stampe/emulatore/:stampante\_id/spegni}}
+
+Spegne la stampante emulata indicata, aggiorna lo stato nel database a
+\texttt{offline} e notifica lo smistatore tramite WebSocket
+(\texttt{stampante\_offline}). Usato per simulare guasti in modalità demo.
+
+\begin{lstlisting}[style=json]
+{ "ok": true, "stampante_id": 1, "stato": "offline" }
+\end{lstlisting}
+
+\apicall{\POST~\texttt{/api/stampe/emulatore/:stampante\_id/accendi}}
+
+Riavvia la stampante emulata, aggiorna lo stato a \texttt{online} e notifica lo
+smistatore tramite WebSocket (\texttt{stampante\_online}).
+
+\begin{lstlisting}[style=json]
+{ "ok": true, "stampante_id": 1, "stato": "online" }
+\end{lstlisting}
+
+\apicall{\GET~\texttt{/api/stampe/emulatore/stato}}
+
+Snapshot dello stato di tutti gli emulatori TCP attivi (porta, stato, ultima
+attività).
+
+\begin{lstlisting}[style=json]
+{
+  "1": { "porta": 9100, "stato": "online",  "ultima_attivita": "2026-05-26T20:14:00Z" },
+  "2": { "porta": 9101, "stato": "online",  "ultima_attivita": "2026-05-26T20:12:30Z" },
+  "3": { "porta": 9102, "stato": "offline", "ultima_attivita": null }
+}
+\end{lstlisting}
+
+\newpage

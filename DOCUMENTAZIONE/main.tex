@@ -1,0 +1,116 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{graphicx}   % Aggiunto per inserire le immagini
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}   % \toprule, \midrule, \bottomrule nelle tabelle
+\usepackage{array}      % colonne con larghezza fissa (p{...})
+\usepackage{algpseudocode}  % ambiente algorithmic
+\usepackage{algorithm}      % ambiente figure per gli algoritmi
+\usepackage{amsmath}    % equazioni e \arg\min
+\usepackage{float}
+\usepackage{amssymb} 
+\usepackage{enumitem}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+
+
+% Screenshot Postman: #1 = nome file (in cartella screenshots/), #2 = didascalia
+\newcommand{\postman}[2]{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/#1}
+    \caption{#2}
+  \end{figure}}
+
+\definecolor{methodget}{RGB}{39,174,96}
+\definecolor{methodpost}{RGB}{41,128,185}
+\definecolor{methodput}{RGB}{230,126,34}
+\definecolor{methoddelete}{RGB}{192,57,43}
+\definecolor{jsonbg}{RGB}{245,245,245}
+\definecolor{jsonframe}{RGB}{200,200,200}
+
+\lstdefinestyle{json}{
+    backgroundcolor=\color{jsonbg},
+    frame=single,
+    rulecolor=\color{jsonframe},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false,
+    aboveskip=4pt,
+    belowskip=4pt
+}
+
+\newcommand{\GET}{\textbf{\textcolor{methodget}{\texttt{GET}}}}
+\newcommand{\POST}{\textbf{\textcolor{methodpost}{\texttt{POST}}}}
+\newcommand{\PUT}{\textbf{\textcolor{methodput}{\texttt{PUT}}}}
+\newcommand{\DELETE}{\textbf{\textcolor{methoddelete}{\texttt{DELETE}}}}
+
+% Intestazione di un singolo endpoint API (non entra nell'indice)
+\newcommand{\apicall}[1]{\par\medskip\noindent#1\par\nobreak\vspace{2pt}}
+
+\input{preamble}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+
+    % --- Inserimento del Logo ---
+    \includegraphics[width=0.4\textwidth]{logo_unibg.jpg} \\
+    \vspace{1cm}
+    % ----------------------------
+
+    {\Large \textbf{UNIVERSITÀ DEGLI STUDI DI BERGAMO}} \\
+    \vspace{0.5cm}
+    {\large Corso di Progettazione, Algoritmi e Computabilità} \\
+
+    \vspace{3.5cm}
+
+    {\Huge \textbf{Documentazione Progetto}} \\
+    \vspace{0.5cm}
+    {\LARGE \textbf{Gestionale Feste di Paese : "QuickByte"}} \\
+
+    \vspace{3.5cm}
+
+    % --- Sezione Studenti Allineata su due colonne ---
+    \vspace{0.4cm}
+    {\large
+    \begin{tabular}{l l}  
+        Maccari Luca & Matr. 1081951 \\
+        Masinari Gabriele & Matr. 1079692 \\
+        Tomasoni Francesco & Matr. 1080980
+    \end{tabular}
+    }
+    % -------------------------------------------------
+
+    \vfill
+
+    {\large Anno Accademico 2025/2026}
+\end{titlepage}
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\hypersetup{pageanchor=true}
+\pagenumbering{arabic}
+
+% ----------------------------------------------------------------
+%  Iterazioni — aggiungine una riga per ogni nuova iterazione
+% ----------------------------------------------------------------
+\input{iterazioni/iterazione0}
+\newpage
+\input{iterazioni/iterazione1}
+\newpage
+\input{iterazioni/iterazione2}
+\newpage
+\input{iterazioni/iterazione3}
+\end{document}

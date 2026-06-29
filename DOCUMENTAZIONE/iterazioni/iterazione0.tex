@@ -1,0 +1,617 @@
+% ================================================================
+\section{ITERAZIONE 0}
+% ================================================================
+
+\subsection{Introduzione}
+
+Le feste di paese e le sagre locali sono eventi di grande aggregazione, ma la loro
+gestione logistica è spesso ostacolata da processi manuali inefficienti: code alle
+casse, errori nella lettura delle comande cartacee, ritardi in preparazione e
+disallineamento tra ordini e scorte reali in cucina. Sono problemi ricorrenti che
+penalizzano sia il lavoro dei volontari sia l'esperienza dei partecipanti.
+
+Questo progetto risolve tali criticità con un sistema digitale e centralizzato per
+la gestione di comande, cassa e smistamento degli ordini, pensato per ottimizzare
+l'intero flusso di lavoro, ridurre il margine di errore umano e velocizzare il
+servizio. La piattaforma offre un front-end rapido e intuitivo per i cassieri e un
+back-office riservato agli amministratori per la configurazione di menù e regole di
+business.
+
+Il sistema copre tre ambiti principali:
+\begin{itemize}
+    \item \textbf{Gestione della cassa e composizione dell'ordine:} interfaccia
+          touch-friendly per la selezione rapida dei piatti, calcolo automatico
+          del totale, gestione flessibile di sconti, calcolo del resto e opzioni
+          dedicate per l'asporto.
+    \item \textbf{Gestione e smistamento delle stampe:} invio automatizzato e
+          smistamento intelligente delle comande ai vari reparti di preparazione
+          (es. cucina, pizzeria, bar, griglia) in base a regole di stampa
+          prestabilite, eliminando la necessità di fattorini fisici tra la cassa
+          e i reparti.
+    \item \textbf{Gestione dinamica delle scorte:} monitoraggio in tempo reale
+          delle quantità limitate, sia per prodotti singoli che per ingredienti
+          condivisi tra più piatti, con alert visivi automatici per prevenire
+          la vendita di pietanze esaurite.
+\end{itemize}
+
+% -
+
+\subsection{Attori del sistema}
+Gli attori coinvolti nel sistema Gestionale Feste sono:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.5}
+\begin{tabularx}{\textwidth}{|L|X|}
+\hline
+\rowcolor{ucheader}\textcolor{white}{\textbf{Attore}} &
+    \textcolor{white}{\textbf{Descrizione}} \\
+\hline
+Cassiere &
+    Operatore principale della cassa. Gestisce ordini, pagamenti, note e stampe
+    durante la festa. \\
+\hline
+Amministratore (Admin) &
+    Configura il sistema prima della festa: menu, stampanti, scorte, allergeni.
+    Attore della fase di setup. Nei casi d'uso e nelle iterazioni successive è
+    indicato con il nome breve \emph{Admin}. \\
+\hline
+Sistema di Smistamento &
+    Attore secondario. Rappresenta il sottosistema responsabile dello smistamento
+    e dell'invio dei biglietti alle stampanti distribuite. \`E modellato come attore
+    secondario per enfatizzare la natura distribuita della stampa su più postazioni
+    fisiche, con responsabilità distinte rispetto alla gestione dell'ordine. \\
+\hline
+\end{tabularx}
+\caption{Attori del sistema}
+\end{table}
+
+% 
+\subsection{Use Case Stories}
+
+\subsubsection{Use Case Stories: Cassiere}
+
+\subsubsection*{CONSULTARE ALLERGENI}
+\begin{itemize}
+    \item Come cassiere, voglio poter consultare la lista degli allergeni di ogni pietanza per informare i clienti con intolleranze alimentari.
+    \item Come cassiere, voglio che la finestra degli allergeni sia accessibile in qualsiasi momento durante la composizione dell'ordine.
+    \item Come cassiere, voglio poter stampare la scheda allergeni di un prodotto o l'elenco completo se richiesto dal cliente.
+\end{itemize}
+
+\subsubsection*{AGGIUNGERE PIETANZE ALL'ORDINE}
+\begin{itemize}
+    \item Come cassiere, voglio selezionare le pietanze cliccando sui tasti nella parte sinistra dello schermo per aggiungere velocemente gli articoli al riepilogo.
+    \item Come cassiere, voglio che il riepilogo si aggiorni in tempo reale con quantità e prezzi complessivi ad ogni selezione.
+    \item Come cassiere, voglio che i tasti delle pietanze esaurite siano visivamente distinti (grigio scuro, non cliccabili) per evitare errori.
+    \item Come cassiere, voglio ricevere un avviso visivo (lampeggio giallo/rosso) quando le scorte di un prodotto stanno per esaurirsi.
+    \item Come cassiere, voglio ricevere un alert non bloccante se ordino una pietanza il cui ingrediente condiviso (es. polenta) è esaurito.
+\end{itemize}
+
+\subsubsection*{MODIFICARE PIETANZA ORDINATA}
+\begin{itemize}
+    \item Come cassiere, voglio poter accedere alla schermata di modifica cliccando su una pietanza nel riepilogo per correggere quantità e note.
+    \item Come cassiere, voglio avere tasti di decremento rapido (-1, -2, ... -N) per ridurre velocemente le porzioni di una pietanza.
+    \item Come cassiere, voglio poter aggiungere una nota libera per ogni singola porzione di una pietanza per personalizzare l'ordine.
+    \item Come cassiere, voglio poter selezionare note preimpostate da un menù rapido per velocizzare le variazioni più comuni.
+    \item Come cassiere, voglio poter eliminare completamente una pietanza dall'ordine con un singolo tasto.
+\end{itemize}
+
+\subsubsection*{GESTIONE ORDINE}
+\begin{itemize}
+    \item Come cassiere, voglio poter azzerare l'intero ordine con un tasto dedicato per ricominciare da zero in caso di errore.
+    \item Come cassiere, voglio poter inserire la cifra pagata dal cliente per ottenere automaticamente il calcolo del resto.
+    \item Come cassiere, voglio poter applicare una scontistica all'ordine prima della conferma.
+    \item Come cassiere, voglio poter taggare un ordine come 'asporto' in qualsiasi momento con un tasto che cambia colore per indicarne l'attivazione.
+\end{itemize}
+
+\subsubsection*{CONFERMARE ORDINE}
+\begin{itemize}
+    \item Come cassiere, voglio confermare l'ordine con un singolo tasto per avviare la stampa sui settori competenti.
+    \item Come cassiere, voglio ricevere un alert non bloccante prima della stampa se l'ordine asporto contiene pietanze non asportabili.
+    \item Come cassiere, voglio che dopo la conferma il sistema torni automaticamente alla schermata principale per ricevere il prossimo ordine.
+\end{itemize}
+
+\subsubsection{Use Case Stories: Admin}
+
+\subsubsection*{AUTENTICARSI}
+\begin{itemize}
+    \item Come admin, voglio accedere all'area di amministrazione tramite una password riservata, così che solo il personale autorizzato possa configurare il sistema.
+    \item Come admin, voglio che l'accesso richieda la sola password, senza nome utente, per essere rapido durante l'allestimento della festa.
+    \item Come admin, voglio poter cambiare la password di amministrazione dopo l'accesso.
+    \item Come admin, voglio che la sessione di accesso abbia una scadenza, così che una postazione lasciata incustodita non resti sbloccata a tempo indeterminato.
+\end{itemize}
+
+\subsubsection*{CONFIGURARE MENÙ}
+\begin{itemize}
+    \item Come admin, voglio poter aggiungere, modificare o rimuovere pietanze/bevande dal menù prima della festa.
+    \item Come admin, voglio poter assegnare ogni pietanza a una colonna di visualizzazione, un colore e un ordine di posizione sullo schermo.
+    \item Come admin, voglio poter nascondere temporaneamente una pietanza dallo schermo senza eliminarla dal database.
+    \item Come admin, voglio poter configurare per ogni pietanza una o più stampanti di destinazione per il settore di stampa.
+    \item Come admin, voglio poter definire note preimpostate per ogni pietanza, con eventuale costo aggiuntivo associato.
+    \item Come admin, voglio poter marcare ogni pietanza come 'da asporto' o 'non da asporto'.
+\end{itemize}
+
+\subsubsection*{IMPOSTARE SCORTE}
+\begin{itemize}
+    \item Come admin, voglio poter impostare le quantità iniziali delle pietanze a disponibilità limitata prima dell'inizio della festa.
+    \item Come admin, voglio poter configurare le soglie di allerta (giallo e rosso) per il lampeggio dei tasti a scorte basse.
+    \item Come admin, voglio poter creare contatori aggregati per ingredienti condivisi tra più pietanze (es. polenta) e associarvi i prodotti interessati.
+    \item Come admin, voglio poter creare prodotti 'fittizi' da usare esclusivamente per il monitoraggio dei contatori aggregati.
+\end{itemize}
+
+\subsubsection*{COMPILARE ALLERGENI}
+\begin{itemize}
+    \item Come admin, voglio poter associare gli allergeni a ogni pietanza del menù prima della festa.
+    \item Come admin, voglio poter stampare la lista completa di tutte le pietanze con i relativi allergeni.
+    \item Come admin, voglio poter stampare la scheda allergeni di un singolo prodotto.
+\end{itemize}
+
+\subsubsection{Use Case Stories: Sistema di Smistamento}
+
+\subsubsection*{STAMPA E AGGIORNAMENTO SCORTE}
+\begin{itemize}
+    \item Come sistema di smistamento, devo ricevere i biglietti degli ordini confermati e indirizzarli alle stampanti dei settori corretti.
+    \item Come sistema di smistamento, devo notificare al sistema principale eventuali errori di stampa.
+    \item Come sistema di smistamento, devo collaborare all'aggiornamento delle scorte al momento della conferma di ogni ordine.
+\end{itemize}
+
+\subsection{Use Case Diagram}
+Il diagramma dei casi d'uso (Use Case Diagram) del sistema Gestionale Feste è riportato di seguito.
+Il sistema include due attori primari (Cassiere e Admin) e un attore secondario (Sistema di Smistamento).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{IT0_use_case_diagram.png}
+    \caption{Use Case Diagram del sistema}
+    \label{fig:usecase}
+\end{figure}
+\FloatBarrier
+
+
+\subsection{Fully Dressed Descriptions}
+
+\subsubsection*{UC1 - Consultare Allergeni}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Consultare Allergeni \\ \hline
+\textbf{Summary} & Il cassiere consulta la lista degli allergeni associati alle pietanze presenti nel menù. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & Il cassiere ha avviato il sistema. Il menù e gli allergeni sono stati preventivamente configurati dall'Admin. \\ \hline
+\textbf{Postcondizione} & Il cassiere ha visualizzato gli allergeni del prodotto selezionato. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere preme il tasto 'Allergeni' nella parte destra dello schermo.\newline 2. Il sistema apre una finestra con l'elenco dei prodotti divisi per settore di visualizzazione.\newline 3. Il cassiere seleziona una pietanza dalla lista.\newline 4. Il sistema mostra l'elenco degli allergeni contenuti nella pietanza selezionata.\newline 5. Il cassiere chiude la finestra e torna alla schermata principale. \\ \hline
+\textbf{Branch Sequence} & \\ \hline
+\textbf{Exception Sequence} & E1: Nessun allergene associato alla pietanza.\newline 4. Il sistema mostra il messaggio 'Nessun allergene registrato per questo prodotto'.\newline 5. Il cassiere chiude la finestra. \\ \hline
+\textbf{Sub Use Case} & Configurare Menù (compilazione allergeni da parte dell'Admin) \\ \hline
+\textbf{Note} & La finestra degli allergeni è accessibile in qualsiasi momento durante la composizione dell'ordine. \\ \hline
+\end{tabular}
+\end{center}
+
+\subsubsection*{UC2 - Aggiungere Pietanze All'ordine}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Aggiungere Pietanze All'ordine \\ \hline
+\textbf{Summary} & Il cassiere seleziona le pietanze ordinate dal cliente aggiungendole al riepilogo dell'ordine. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & Il sistema è avviato e il menù è configurato. La schermata principale è visibile con le colonne pietanze sulla sinistra e il riepilogo sulla destra. \\ \hline
+\textbf{Postcondizione} & Le pietanze selezionate appaiono nel riepilogo a destra con quantità e prezzo aggiornati in tempo reale. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere identifica la pietanza richiesta dal cliente nella colonna corrispondente (es. Primi, Secondi, Bar).\newline 2. Il cassiere clicca sul tasto della pietanza desiderata.\newline 3. Il sistema aggiunge la pietanza al riepilogo a destra oppure ne incrementa la quantità se già presente.\newline 4. Il sistema aggiorna il totale dell'ordine in tempo reale.\newline 5. Il cassiere ripete i passi 1-4 per ogni ulteriore pietanza ordinata dal cliente. \\ \hline
+\textbf{Branch Sequence} & B1: La pietanza è a quantità limitata in esaurimento.\newline 2. Il tasto della pietanza lampeggia di giallo (scorta bassa) o di rosso (scorta critica).\newline 3. Il cassiere può comunque selezionare la pietanza.\newline B2: La pietanza è esaurita (scorta = 0).\newline 2. Il tasto appare grigio scuro e non è selezionabile.\newline 3. Il cassiere informa il cliente della non disponibilità. \\ \hline
+\textbf{Exception Sequence} & E1: Il contatore aggregato (es. polenta) è esaurito.\newline 3. Il sistema mostra un alert non bloccante segnalando l'esaurimento dell'ingrediente condiviso.\newline 4. Il cassiere può proseguire o rimuovere la pietanza. \\ \hline
+\textbf{Sub Use Case} & — \\ \hline
+\textbf{Note} & Ogni clic sul tasto di una pietanza aggiunge una unità. Se la pietanza ha un flag 'non visualizzare su schermo', non compare tra i tasti. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+\subsubsection*{UC3 - Modificare Pietanza Ordinata}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Modificare Pietanza Ordinata \\ \hline
+\textbf{Summary} & Il cassiere modifica una pietanza già inserita nell'ordine, potendo cambiare la quantità e/o aggiungere note. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & Almeno una pietanza è stata aggiunta al riepilogo dell'ordine. \\ \hline
+\textbf{Postcondizione} & La pietanza risulta aggiornata nel riepilogo con la nuova quantità e/o le note indicate. Il totale è ricalcolato. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere clicca sulla pietanza nel riepilogo a destra dello schermo.\newline 2. Il sistema apre la schermata di modifica, mostrando: nome piatto, prezzo, quantità ordinata.\newline 3. Il cassiere visualizza le opzioni disponibili: modifica quantità, note preimpostate, note libere.\newline 4. Il cassiere effettua le modifiche desiderate.\newline 5. Il cassiere conferma le modifiche.\newline 6. Il sistema aggiorna il riepilogo e il totale dell'ordine. \\ \hline
+\textbf{Branch Sequence} & B1: Il cassiere sceglie di eliminare completamente la pietanza.\newline 4. Il cassiere preme il tasto 'Elimina pietanza'.\newline 5. Il sistema rimuove la pietanza dal riepilogo e aggiorna il totale. \\ \hline
+\textbf{Exception Sequence} & \\ \hline
+\textbf{Sub Use Case} & UC3b - Aggiungere Note \\ \hline
+\textbf{Note} & La schermata di modifica mostra tanti tasti di decremento quante sono le porzioni ordinate (es. 3 porzioni $\rightarrow$ tasti -1, -2, -3) più il tasto +1. \\ \hline
+\end{tabular}
+\end{center}
+\newpage 
+ 
+
+\subsubsection*{UC3b - Aggiungere Note}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Aggiungere Note \\ \hline
+\textbf{Summary} & Il cassiere aggiunge una nota testuale a una o più porzioni di una pietanza nell'ordine, utilizzando testo libero o note preimpostate. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & La schermata di modifica della pietanza è aperta (UC3). \\ \hline
+\textbf{Postcondizione} & Le note sono associate alla pietanza e verranno stampate sullo scontrino. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere visualizza i campi nota (uno per ogni porzione ordinata).\newline 2. Il cassiere seleziona il campo nota della porzione di interesse.\newline 3. Il cassiere sceglie se inserire una nota preimpostata o una nota libera.\newline 4. Il sistema registra la nota associata alla specifica porzione.\newline 5. Il cassiere può ripetere per le altre porzioni della stessa pietanza. \\ \hline
+\textbf{Branch Sequence} & B1: Nota preimpostata con costo aggiuntivo.\newline 4. Il sistema aggiunge il costo della nota al prezzo della pietanza e aggiorna il totale dell'ordine. \\ \hline
+\textbf{Exception Sequence} & \\ \hline
+\textbf{Sub Use Case} & — \\ \hline
+\textbf{Note} & Questo caso d'uso è raggiunto tramite relazione \textless\textless extend\textgreater\textgreater da UC3. Il numero di campi nota corrisponde alla quantità di porzioni ordinate. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC4 - Gestione Ordine}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Gestione Ordine \\ \hline
+\textbf{Summary} & Il cassiere gestisce le opzioni generali dell'ordine corrente: applicazione di sconti, marcatura come asporto e gestione del pagamento. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & Il sistema è avviato. Almeno una pietanza è stata aggiunta all'ordine oppure l'ordine è in fase di composizione. \\ \hline
+\textbf{Postcondizione} & Le opzioni selezionate (sconto e/o asporto) sono registrate nell'ordine e verranno applicate alla conferma e alla stampa. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere compone l'ordine aggiungendo pietanze.\newline 2. Il cassiere valuta se applicare opzioni aggiuntive (sconto, asporto).\newline 3. Il cassiere utilizza le funzioni di estensione disponibili.\newline 4. Il sistema registra le opzioni nell'ordine corrente.\newline 5. Il cassiere procede alla conferma dell'ordine (UC5).\newline 6. (Opzionale) Il cassiere inserisce l'importo pagato dal cliente; il sistema calcola e visualizza automaticamente il resto. \\ \hline
+\textbf{Branch Sequence} & B1: Il cassiere decide di azzerare completamente l'ordine.\newline 2. Il cassiere preme il tasto 'Azzera ordine'.\newline 3. Il sistema cancella tutte le pietanze dal riepilogo e azzera il totale. \\ \hline
+\textbf{Exception Sequence} & \\ \hline
+\textbf{Sub Use Case} & — \\ \hline
+\textbf{Note} & La gestione ordine avviene nella parte destra dello schermo. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+\subsubsection*{UC5 - Confermare Ordine}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Confermare Ordine \\ \hline
+\textbf{Summary} & Il cassiere conferma l'ordine, che viene inviato in stampa alle stampanti dei settori competenti e aggiorna le scorte. \\ \hline
+\textbf{Actor} & Cassiere \\ \hline
+\textbf{Precondizione} & L'ordine è composto (almeno una pietanza presente). Le stampanti associate ai settori di stampa sono configurate e attive. \\ \hline
+\textbf{Postcondizione} & L'ordine è confermato e inviato in stampa. Le scorte vengono aggiornate. Il sistema è pronto per un nuovo ordine. \\ \hline
+\textbf{Base Sequence} & 1. Il cassiere preme il tasto 'Conferma Ordine'.\newline 2. Il sistema verifica l'ordine (pietanze, note, sconto, flag asporto).\newline 3. Il sistema avvia il processo di stampa (UC5a - Genera Stampe e Smistare) e l'aggiornamento scorte (UC5b - Aggiornare Scorte).\newline 4. Il sistema azzera il riepilogo e lo schermo torna alla schermata principale pronto per un nuovo ordine. \\ \hline
+\textbf{Branch Sequence} & B1: Ordine asporto con pietanze non asportabili.\newline 2. Il sistema mostra un alert non bloccante.\newline 3. Il cassiere sceglie di proseguire: le pietanze non asportabili vengono poste in coda al biglietto. \\ \hline
+\textbf{Exception Sequence} & E1: Una o più stampanti non sono raggiungibili.\newline 3. Il sistema notifica l'errore di stampa.\newline 4. Il cassiere verifica lo stato delle stampanti e ritenta. \\ \hline
+\textbf{Sub Use Case} & UC5a - Genera Stampe E Smistare, UC5b - Aggiornare Scorte \\ \hline
+\textbf{Note} & UC5a e UC5b sono inclusi tramite relazione \textless\textless include\textgreater\textgreater e vengono sempre eseguiti alla conferma dell'ordine. \\ \hline
+\end{tabular}
+\end{center}
+
+
+\newpage 
+
+\subsubsection*{UC5a - Genera Stampe E Smistare}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Genera Stampe E Smistare \\ \hline
+\textbf{Summary} & Il sistema genera i biglietti di stampa per ogni settore (cucina, bar, pizzeria, ecc.) e li invia alle stampanti associate, coordinandosi con il Sistema di Smistamento. \\ \hline
+\textbf{Actor} & Cassiere, Sistema di Smistamento \\ \hline
+\textbf{Precondizione} & L'ordine è stato confermato (UC5). Le stampanti associate ai settori di stampa sono configurate. \\ \hline
+\textbf{Postcondizione} & Ogni pietanza è stampata sul biglietto del settore di competenza e inviata alla/e stampante/e corretta/e. Eventuale copia cliente emessa sulla stampante cassa. \\ \hline
+\textbf{Base Sequence} & 1. Il sistema raggruppa le pietanze per settore di stampa (cucina, bar, pizzeria, ecc.).\newline 2. Per ogni settore, il sistema genera un biglietto distinto.\newline 3. Il sistema invia ogni biglietto alle stampanti associate al relativo settore.\newline 4. Se nell'ordine sono presenti pietanze con modalità 'Stampa singola quantità singola', vengono stampati tanti biglietti singoli quante le porzioni ordinate.\newline 5. Se nell'ordine sono presenti pietanze con modalità 'Stampa singola quantità multipla', viene stampato un biglietto per quella pietanza con la quantità totale.\newline 6. Per i prodotti con flag 'Copia scontrino cliente', viene emessa una copia cliente sulla stampante cassa.\newline 7. Se l'ordine è asporto, ogni biglietto riporta il titolo 'ASPORTO' in alto a caratteri cubitali. \\ \hline
+\textbf{Branch Sequence} & \\ \hline
+\textbf{Exception Sequence} & E1: Stampante non raggiungibile.\newline 3. Il Sistema di Smistamento notifica l'errore al sistema principale.\newline 4. Il sistema informa il cassiere della mancata stampa su quel settore. \\ \hline
+\textbf{Sub Use Case} & UC5 - Confermare Ordine \\ \hline
+\textbf{Note} & Raggiunto tramite relazione \textless\textless include\textgreater\textgreater da UC5. Il Sistema di Smistamento è un attore secondario che partecipa attivamente a questo caso d'uso. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC5b - Aggiornare Scorte}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Aggiornare Scorte \\ \hline
+\textbf{Summary} & Il sistema aggiorna automaticamente le scorte residue di ogni prodotto ordinato al momento della conferma dell'ordine. \\ \hline
+\textbf{Actor} & Cassiere, Sistema di Smistamento \\ \hline
+\textbf{Precondizione} & L'ordine è stato confermato (UC5). La gestione delle scorte è attiva per almeno un prodotto. \\ \hline
+\textbf{Postcondizione} & Le scorte dei prodotti ordinati sono decrementate della quantità ordinata. I tasti delle pietanze aggiornano il proprio stato visivo (normale, lampeggio giallo, lampeggio rosso, grigio). \\ \hline
+\textbf{Base Sequence} & 1. Il sistema identifica le pietanze nell'ordine che hanno la gestione scorte attiva.\newline 2. Per ogni pietanza, il sistema decrementa la scorta residua della quantità ordinata.\newline 3. Per i contatori aggregati (es. polenta), il sistema decrementa il contatore condiviso.\newline 4. Il sistema aggiorna lo stato visivo dei tasti: lampeggio giallo se scorte $\le$ soglia X, lampeggio rosso se scorte $\le$ soglia Y, grigio scuro se scorte = 0.\newline 5. Se la scorta di un contatore aggregato raggiunge 0, i tasti delle pietanze associate diventano grigio chiaro (selezionabili con alert). \\ \hline
+\textbf{Branch Sequence} & \\ \hline
+\textbf{Exception Sequence} & E1: La scorta risulta inferiore alla quantità ordinata.\newline 2. Il sistema registra comunque l'ordine ma segnala al cassiere l'anomalia. \\ \hline
+\textbf{Sub Use Case} & UC5 - Confermare Ordine \\ \hline
+\textbf{Note} & Raggiunto tramite relazione \textless\textless include\textgreater\textgreater da UC5. Le soglie X e Y sono parametri configurabili dall'Admin in una tabella parametrica, con X \textgreater Y \textgreater 0. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC6 - Configurare Menù}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Configurare Menù \\ \hline
+\textbf{Summary} & L'Admin configura il menù del sistema impostando le pietanze/bevande disponibili, le relative colonne di visualizzazione, i colori, l'ordinamento, gli allergeni, le scorte iniziali e le stampanti di reparto. \\ \hline
+\textbf{Actor} & Admin \\ \hline
+\textbf{Precondizione} & L'Admin ha accesso al pannello di configurazione del sistema. \\ \hline
+\textbf{Postcondizione} & Il menù è configurato e disponibile per il Cassiere. Le pietanze compaiono nelle colonne corrette con i parametri impostati. Le stampanti sono associate ai rispettivi settori di stampa. \\ \hline
+\textbf{Base Sequence} & 1. L'Admin accede al pannello di configurazione del menù.\newline 2. Il sistema mostra la lista delle pietanze/bevande esistenti.\newline 3. Per ogni pietanza, l'Admin può aggiungere, modificare o rimuovere i seguenti parametri: Codice piatto, Descrizione, Prezzo, Settore di visualizzazione (colonna), Ordine sullo schermo, Colore del tasto, Visualizzare su schermo (booleano), Settore di stampa, Flag asporto/non asporto.\newline 4. L'Admin configura anche le note preimpostate per ogni pietanza con relativo eventuale costo aggiuntivo.\newline 5. L'Admin avvia le procedure di inclusione: Impostare Scorte (UC6a) e Compilare Allergeni (UC6b).\newline 6. L'Admin salva la configurazione.\newline 7. Il sistema rende disponibili le modifiche sulla schermata del Cassiere. \\ \hline
+\textbf{Branch Sequence} & \\ \hline
+\textbf{Exception Sequence} & E1: Codice piatto duplicato.\newline 6. Il sistema segnala il conflitto e richiede la correzione prima di salvare. \\ \hline
+\textbf{Sub Use Case} & UC6a - Impostare Scorte, UC6b - Compilare Allergeni \\ \hline
+\textbf{Note} & Il menù può avere fino a 6 colonne di visualizzazione. L'altezza delle celle si adatta automaticamente alla colonna. L'ordinamento segue il campo 'Ordine sullo schermo' crescente; a parità di numero, ordine alfabetico. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC6a - Impostare Scorte}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Impostare Scorte \\ \hline
+\textbf{Summary} & L'Admin imposta la quantità residua iniziale per i prodotti disponibili in quantità limitata e configura i contatori aggregati per ingredienti condivisi tra più pietanze. \\ \hline
+\textbf{Actor} & Admin \\ \hline
+\textbf{Precondizione} & Il pannello di configurazione menù è aperto (UC6). Il prodotto a scorta limitata è già presente nel menù. \\ \hline
+\textbf{Postcondizione} & Le scorte iniziali sono impostate. I contatori aggregati sono configurati con i relativi prodotti associati. \\ \hline
+\textbf{Base Sequence} & 1. L'Admin preme il tasto di gestione scorte nel pannello di configurazione.\newline 2. Il sistema apre una tabella con tutti i prodotti.\newline 3. L'Admin imposta la quantità residua per ogni prodotto a scorta limitata.\newline 4. L'Admin configura i valori soglia X (lampeggio giallo) e Y (lampeggio rosso) nella tabella parametrica.\newline 5. L'Admin crea i contatori aggregati per gli ingredienti condivisi (es. polenta), associandovi i prodotti interessati.\newline 6. L'Admin salva la configurazione delle scorte. \\ \hline
+\textbf{Branch Sequence} & B1: Prodotto fittizio (non fisicamente ordinabile ma usato per tracking).\newline 3. L'Admin configura il prodotto come 'fittizio' per il solo scopo di monitoraggio del contatore. \\ \hline
+\textbf{Exception Sequence} & E1: Valore soglia non valido (X $\le$ Y o Y $\le$ 0).\newline 4. Il sistema segnala l'errore e richiede la correzione (vincolo X \textgreater Y \textgreater 0). \\ \hline
+\textbf{Sub Use Case} & UC6 - Configurare Menù \\ \hline
+\textbf{Note} & Raggiunto tramite relazione \textless\textless include\textgreater\textgreater da UC6. I contatori aggregati vengono decrementati ogni volta che uno qualsiasi dei prodotti associati viene ordinato. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC6b - Compilare Allergeni}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Compilare Allergeni \\ \hline
+\textbf{Summary} & L'Admin associa gli allergeni a ogni pietanza del menù, rendendo disponibile la consultazione da parte del Cassiere. \\ \hline
+\textbf{Actor} & Admin \\ \hline
+\textbf{Precondizione} & Il pannello di configurazione menù è aperto (UC6). Le pietanze sono già presenti nel menù. \\ \hline
+\textbf{Postcondizione} & Gli allergeni sono associati alle pietanze. Il Cassiere può consultarli tramite il tasto 'Allergeni'. È possibile stampare la lista completa o quella di un singolo prodotto. \\ \hline
+\textbf{Base Sequence} & 1. L'Admin accede alla sezione 'Allergeni' nel pannello di configurazione.\newline 2. Il sistema mostra la lista dei prodotti divisi per settore di visualizzazione.\newline 3. L'Admin seleziona un prodotto.\newline 4. Il sistema mostra i campi per l'inserimento degli allergeni.\newline 5. L'Admin inserisce o modifica l'elenco degli allergeni per il prodotto.\newline 6. L'Admin salva le informazioni.\newline 7. L'Admin ripete i passi 3-6 per ogni prodotto che necessita di allergeni.\newline 8. L'Admin può stampare la lista completa di prodotti e allergeni o quella di un singolo prodotto. \\ \hline
+\textbf{Branch Sequence} & \\ \hline
+\textbf{Exception Sequence} & \\ \hline
+\textbf{Sub Use Case} & UC6 - Configurare Menù \\ \hline
+\textbf{Note} & Raggiunto tramite relazione \textless\textless include\textgreater\textgreater da UC6. Questa configurazione avviene tipicamente prima della festa/evento. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsubsection*{UC8 - Autenticazione Admin}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.7\textwidth}|}
+\hline
+\textbf{Use Case} & Autenticazione Admin \\ \hline
+\textbf{Summary} & L'Admin accede all'area di amministrazione inserendo la password riservata; il sistema la verifica e abilita le funzioni di backoffice per la durata della sessione. \\ \hline
+\textbf{Actor} & Admin \\ \hline
+\textbf{Precondizione} & Il sistema è avviato. È stata definita una password di amministrazione (di default \texttt{1111} al primo avvio, eventualmente già modificata). \\ \hline
+\textbf{Postcondizione} & In caso di successo l'Admin ottiene una sessione valida e può operare sul backoffice. In caso di fallimento l'accesso resta negato e nessuna sessione viene creata. \\ \hline
+\textbf{Base Sequence} & 1. L'Admin apre l'area di amministrazione.\newline 2. Il sistema, non rilevando una sessione valida, mostra la schermata di accesso con il solo campo password.\newline 3. L'Admin inserisce la password e conferma.\newline 4. Il sistema verifica la password contro quella memorizzata per l'amministratore.\newline 5. La password è corretta: il sistema apre una sessione con scadenza e mostra il pannello di amministrazione.\newline 6. Nelle operazioni successive l'Admin opera entro la sessione autenticata. \\ \hline
+\textbf{Branch Sequence} & B1: Sessione già attiva.\newline 2. Il sistema riconosce una sessione valida e mostra direttamente il pannello, senza richiedere di nuovo la password.\newline B2: Cambio password.\newline 5. Dall'area amministrativa l'Admin fornisce password attuale e nuova; il sistema verifica la prima e registra la seconda. \\ \hline
+\textbf{Exception Sequence} & E1: Password errata.\newline 4. Il sistema nega l'accesso e non crea alcuna sessione; l'Admin resta sulla schermata di accesso.\newline E2: Sessione scaduta o assente su una funzione riservata.\newline 6. Il sistema richiede nuovamente l'autenticazione.\newline E3: Campo password vuoto.\newline 3. Il sistema segnala l'input mancante senza tentare la verifica. \\ \hline
+\textbf{Sub Use Case} & Presupposto dai casi d'uso di amministrazione (UC6 - Configurare Menù e correlati), che richiedono l'avvenuta autenticazione. \\ \hline
+\textbf{Note} & L'accesso usa una sola password, senza username. È previsto un meccanismo di sessione con scadenza. \\ \hline
+\end{tabular}
+\end{center}
+
+\newpage 
+
+\subsection{Requisiti Funzionali}
+\begin{description}[leftmargin=2.5cm, labelwidth=2cm]
+  \item[RF-01] \textbf{Gestione ordine:} il cassiere può aggiungere pietanze
+        all'ordine cliccando i tasti nella parte sinistra dello schermo. Ogni
+        clic aggiunge o incrementa la pietanza nel riepilogo.
+
+  \item[RF-02] \textbf{Modifica quantità e note:} dalla parte destra è possibile
+        modificare le quantità e aggiungere note libere o preimpostate per ogni
+        unità di pietanza ordinata.
+
+  \item[RF-03a] \textbf{Calcolo totale e sconti:} il sistema calcola
+        automaticamente il totale dell'ordine ad ogni variazione e applica
+        gli sconti inseriti dal cassiere tramite l'apposita funzione.
+
+  \item[RF-03b] \textbf{Gestione pagamento e resto:} il cassiere può inserire
+        l'importo pagato dal cliente; il sistema calcola e visualizza
+        automaticamente il resto dovuto.
+
+  \item[RF-04] \textbf{Gestione asporto:} possibilità di taggare l'ordine come
+        asporto con alert per pietanze ``non da asporto''.
+
+  \item[RF-05] \textbf{Gestione stampanti:} le pietanze sono raggruppate per
+        settore di stampa e inviate alle stampanti configurate; gestione di
+        biglietti singoli, multipli e copia cliente.
+
+  \item[RF-06] \textbf{Scorte limitate:} gestione visiva delle scorte con soglie
+        di allerta (lampeggio giallo a soglia X, lampeggio rosso a soglia Y).
+        I prodotti singoli con scorta pari a zero diventano grigio scuro e non
+        sono selezionabili (blocco totale). I prodotti legati a un contatore
+        aggregato esaurito diventano grigio chiaro e rimangono selezionabili,
+        ma il sistema mostra un alert non bloccante ad ogni selezione.
+
+  \item[RF-07] \textbf{Allergeni:} consultazione e stampa degli allergeni per
+        singola pietanza o per l'intero menu.
+
+  \item[RF-08] \textbf{Configurazione menu:} l'amministratore configura pietanze,
+        colonne, ordine, colori, note preimpostate, settori di stampa e flag
+        asporto.
+
+  \item[RF-09] \textbf{Configurazione stampanti:} l'amministratore associa una
+        o più stampanti fisiche a ciascun settore di stampa tramite il pannello
+        di configurazione, senza necessità di modificare il codice sorgente.
+
+  \item[RF-10] \textbf{Configurazione scorte e contatori:} l'amministratore
+        imposta quantità iniziali, soglie X e Y, e contatori aggregati per
+        ingredienti condivisi.
+
+  \item[RF-11] \textbf{Conferma ordine:} il cassiere finalizza l'ordine con un
+        singolo tasto; il sistema verifica le pietanze, avvia la stampa sui
+        settori competenti, aggiorna le scorte e azzera il riepilogo per
+        predisporsi al prossimo ordine.
+
+  \item[RF-12] \textbf{Autenticazione Admin:} l'accesso all'area di
+        amministrazione è protetto da una password riservata (senza nome utente);
+        la sessione ha una scadenza e la password è modificabile dall'amministratore.
+\end{description}
+
+% -
+\subsection{Requisiti Non Funzionali}
+
+\subsubsection*{Efficienza}
+Il sistema deve garantire tempi di risposta pressoché istantanei. L'aggiornamento
+del riepilogo dell'ordine, il ricalcolo dei totali e lo scalo delle scorte limitate
+devono avvenire in tempo reale per non rallentare le code alla cassa.
+
+\subsubsection*{Usabilità}
+Le schermate devono adattarsi alla risoluzione, occupando la parte sinistra per
+il menu e la destra per il riepilogo. La gestione delle note preimpostate e la
+codifica a colori dei tasti deve velocizzare le interazioni.
+
+\subsubsection*{Affidabilità}
+Il software deve gestire correttamente la coda di stampa comunicando in modo
+robusto con le stampanti dislocate nei vari reparti, garantendo l'integrità dei
+dati durante i picchi di affluenza.
+
+\subsubsection*{Configurabilità}
+Tutti i parametri chiave (soglie scorte, colori tasti, note preimpostate, settori
+di stampa, associazioni stampanti) devono essere configurabili senza modificare
+il codice sorgente.
+
+\subsection{Topologia del sistema}
+% -
+
+La topologia adottata riflette il requisito non funzionale di efficienza
+e affidabilità: tutte le componenti del sistema operano all'interno di
+una rete locale (LAN), eliminando la dipendenza da connessioni Internet
+e garantendo tempi di risposta pressoché istantanei anche durante i
+picchi di affluenza alla cassa.
+ 
+I client attivi, rappresentati dalle due postazioni cassa e dal pannello
+di back-office, comunicano con il server centrale tramite due protocolli
+applicativi distinti: \texttt{HTTP/REST} per le chiamate API (creazione
+ordini, configurazione menù, gestione scorte) e \texttt{WebSocket} per
+la ricezione in tempo reale degli aggiornamenti sulle scorte, in modo
+da mantenere l'interfaccia della cassa sempre aggiornata senza necessità
+di polling.
+ 
+Il televisore di sala è un client passivo: non effettua mai richieste
+al server ma si limita a ricevere notifiche in tempo reale sugli ordini
+pronti tramite \texttt{WebSocket}. Quando il personale di cucina segna
+un ordine come pronto, il server notifica tutti i client connessi e il
+televisore aggiorna automaticamente la schermata. Non essendo necessaria
+alcuna interazione con le API, per questo device è sufficiente il solo
+protocollo \texttt{WebSocket}.
+ 
+Tutti i protocolli applicativi transitano sulla rete locale tramite
+\texttt{IEEE 802.3} (Ethernet) o \texttt{Wi-Fi 802.11}.
+ 
+Il server centrale è l'unico nodo che accede al database relazionale
+\texttt{MySQL/MariaDB}, con cui comunica tramite il protocollo nativo
+\texttt{MySQL Protocol} sulla porta \texttt{3306}. Le stampanti di
+reparto (cucina, bar, pizzeria) ricevono i biglietti di stampa
+direttamente dal server tramite il protocollo \texttt{ESC/POS over TCP}
+sulla porta \texttt{9100}, standard per le stampanti termiche da
+ristorazione.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{IT0_topology.png}
+  \caption{Topology Diagram}
+  \label{fig:topology}
+\end{figure}
+
+\newpage
+% -
+\subsection{Stile architetturale}
+% -
+
+Il sistema adotta lo \textbf{stile architetturale 3-tier}
+(Figura~\ref{fig:stile-architetturale}), che suddivide l'applicazione
+in tre livelli logicamente e fisicamente separati.
+
+
+
+\begin{itemize}
+  \item \textbf{Presentation tier}: le postazioni cassa e il client back-office
+        costituiscono il livello di presentazione. Sono applicazioni web eseguite
+        nel browser che si occupano esclusivamente di visualizzare i dati e
+        raccogliere l'input dell'operatore, senza contenere alcuna logica di
+        business.
+
+  \item \textbf{Application tier}: il server centrale ospita tutta la logica
+        applicativa. Riceve le richieste dai client tramite
+        \texttt{HTTP/WebSocket}, le elabora  gestione degli ordini, calcolo
+        dei totali, aggiornamento in tempo reale delle scorte, smistamento delle
+        stampe ai reparti  e restituisce le risposte. È l'unico livello che
+        comunica direttamente con il database e con le stampanti.
+
+  \item \textbf{Data tier}: il database relazionale \texttt{MySQL/MariaDB}
+        gestisce la persistenza di tutti i dati: configurazione del menu, scorte
+        limitate, ordini confermati e impostazioni delle stampanti. Le stampanti
+        distribuite nei reparti appartengono anch'esse a questo livello in quanto
+        rappresentano il punto terminale di output dei dati.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.3\textwidth]{IT0_DesignPattern.png}
+  \caption{Stile architetturale 3-tier}
+  \label{fig:stile-architetturale}
+\end{figure}
+
+Questo stile garantisce vantaggi concreti per il progetto:
+
+\begin{itemize}
+  \item \textbf{Manutenibilità}: ogni livello può essere modificato
+        indipendentemente dagli altri; si può, ad esempio, aggiornare
+        l'interfaccia della cassa senza toccare la logica applicativa o il
+        database.
+  \item \textbf{Scalabilità}: è possibile aggiungere nuove postazioni cassa o
+        nuove stampanti di reparto senza modificare il codice sorgente,
+        semplicemente connettendole alla rete locale e aggiornando la
+        configurazione dal pannello di amministrazione.
+  \item \textbf{Centralizzazione}: tutta la logica risiede sul server e le
+        postazioni cassa restano semplici terminali leggeri, raggiungibili da
+        qualsiasi dispositivo dotato di browser senza installare software
+        dedicato.
+\end{itemize}
+
+
+\newpage
+% -
+\subsection{Toolchain e tecnologie utilizzate}
+
+% -
+
+\begin{table}[htbp]
+\centering
+\caption{Toolchain e tecnologie utilizzate}
+\label{tab:toolchain}
+\small
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{TOOL} & \textbf{FUNZIONE} \\
+\midrule
+\textbf{Visual Studio Code} & Sviluppo del codice sorgente. \\
+\addlinespace
+\textbf{Git e GitHub} & Piattaforma per il controllo versione. \\
+\addlinespace
+\textbf{Docker} & Ambiente di sviluppo e database locale (MySQL/MariaDB). \\
+\addlinespace
+\textbf{Framework jQuery Ajax} & Framework per effettuare richieste HTTP/Rest. \\
+\addlinespace
+\textbf{PlantUML / Draw.io} & Realizzazione di grafici e diagrammi UML. \\
+\addlinespace
+\textbf{Google Meet, Discord} & Piattaforma di comunicazione per meeting in remoto. \\
+\addlinespace
+\textbf{\LaTeX} & Stesura e formattazione della documentazione di progetto. \\
+\addlinespace
+\textbf{ESLint} & Analisi statica del codice e calcolo della complessità ciclomatica. \\
+\addlinespace
+\textbf{Madge} & Analisi statica per mappare l'accoppiamento dei moduli e le dipendenze circolari. \\
+\addlinespace
+\textbf{Vitest (con v8)} & Esecuzione di test automatizzati (unitari e di integrazione HTTP) e report di copertura. \\
+\addlinespace
+\textbf{Postman} & Testing manuale e verifica strutturata delle API REST. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\newpage
