@@ -1,0 +1,14 @@
+# Evita che il node_modules dell'host (con binari nativi compilati per il SO
+# locale, es. bcrypt su macOS) venga copiato nell'immagine sovrascrivendo quello
+# costruito da `npm install` dentro al container (Linux/Alpine).
+node_modules
+
+# Artefatti e file non necessari nell'immagine
+coverage
+*.log
+npm-debug.log*
+.DS_Store
+.git
+.gitignore
+Dockerfile
+.dockerignore

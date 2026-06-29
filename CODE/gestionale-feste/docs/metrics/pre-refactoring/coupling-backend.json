@@ -1,0 +1,56 @@
+{
+  "db.js": [],
+  "index.js": [
+    "db.js",
+    "routes/menu.js",
+    "routes/ordini.js",
+    "routes/predittore.js",
+    "routes/scorte.js",
+    "routes/smistatore.js",
+    "routes/stampanti.js",
+    "routes/stampe.js",
+    "services/escpos-emulator.js",
+    "services/printer-dispatcher.js",
+    "services/smistatore.js"
+  ],
+  "routes/menu.js": [
+    "db.js"
+  ],
+  "routes/ordini.js": [
+    "db.js",
+    "services/predittore.js",
+    "services/printer-dispatcher.js",
+    "services/smistatore.js"
+  ],
+  "routes/predittore.js": [
+    "db.js",
+    "services/predittore.js"
+  ],
+  "routes/scorte.js": [
+    "db.js"
+  ],
+  "routes/smistatore.js": [
+    "db.js",
+    "services/smistatore.js"
+  ],
+  "routes/stampanti.js": [
+    "db.js"
+  ],
+  "routes/stampe.js": [
+    "db.js",
+    "services/escpos-emulator.js",
+    "services/printer-dispatcher.js",
+    "services/smistatore.js"
+  ],
+  "services/escpos-emulator.js": [],
+  "services/formatter.js": [],
+  "services/predittore.js": [
+    "db.js"
+  ],
+  "services/printer-dispatcher.js": [
+    "db.js",
+    "services/formatter.js",
+    "services/smistatore.js"
+  ],
+  "services/smistatore.js": []
+}

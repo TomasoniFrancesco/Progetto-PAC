@@ -1,0 +1,95 @@
+{
+  "db.js": [],
+  "index.js": [
+    "db.js",
+    "routes/menu.js",
+    "routes/ordini.js",
+    "routes/predittore.js",
+    "routes/scorte.js",
+    "routes/smistatore.js",
+    "routes/stampanti.js",
+    "routes/stampe.js",
+    "services/escpos-emulator.js",
+    "services/printer-dispatcher.js",
+    "services/smistatore.js"
+  ],
+  "repositories/_tx.js": [
+    "repositories/db.js"
+  ],
+  "repositories/configurazione.repo.js": [
+    "repositories/db.js"
+  ],
+  "repositories/db.js": [
+    "db.js"
+  ],
+  "repositories/ordine.repo.js": [
+    "repositories/_tx.js",
+    "repositories/db.js"
+  ],
+  "repositories/predittore.repo.js": [
+    "repositories/db.js"
+  ],
+  "repositories/scorta.repo.js": [
+    "repositories/_tx.js",
+    "repositories/db.js"
+  ],
+  "repositories/stampa.repo.js": [
+    "repositories/db.js"
+  ],
+  "repositories/stampante.repo.js": [
+    "repositories/db.js"
+  ],
+  "repositories/voce.repo.js": [
+    "repositories/_tx.js",
+    "repositories/db.js"
+  ],
+  "routes/menu.js": [
+    "repositories/voce.repo.js"
+  ],
+  "routes/ordini.js": [
+    "repositories/ordine.repo.js",
+    "repositories/scorta.repo.js",
+    "services/predittore.js",
+    "services/stampa/index.js"
+  ],
+  "routes/predittore.js": [
+    "repositories/configurazione.repo.js",
+    "repositories/voce.repo.js",
+    "services/predittore.js"
+  ],
+  "routes/scorte.js": [
+    "repositories/scorta.repo.js"
+  ],
+  "routes/smistatore.js": [
+    "repositories/stampante.repo.js",
+    "services/stampa/index.js"
+  ],
+  "routes/stampanti.js": [
+    "repositories/stampante.repo.js"
+  ],
+  "routes/stampe.js": [
+    "repositories/stampa.repo.js",
+    "services/stampa/index.js"
+  ],
+  "services/escpos-emulator.js": [
+    "repositories/stampante.repo.js"
+  ],
+  "services/formatter.js": [],
+  "services/predittore.js": [
+    "repositories/configurazione.repo.js",
+    "repositories/predittore.repo.js"
+  ],
+  "services/printer-dispatcher.js": [
+    "repositories/stampa.repo.js",
+    "repositories/stampante.repo.js",
+    "services/formatter.js",
+    "services/smistatore.js"
+  ],
+  "services/smistatore.js": [],
+  "services/stampa/index.js": [
+    "repositories/stampante.repo.js",
+    "services/escpos-emulator.js",
+    "services/printer-dispatcher.js",
+    "services/smistatore.js"
+  ]
+}

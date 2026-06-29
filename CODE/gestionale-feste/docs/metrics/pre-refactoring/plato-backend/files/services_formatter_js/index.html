@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - services/formatter.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/plato.css" rel="stylesheet" type="text/css">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet" type="text/css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="https://github.com/the-simian/es6-plato">ES6 Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+      <li class="active">
+        <a href="display.html">Summary Display</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>services/formatter.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">59.93</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">216</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">53.65</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">2.36</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">// Formatter ESC/POS: converte una Comanda (oggetto JSON generato dallo smistatore)
+// in un Buffer di byte conforme allo standard ESC/POS, pronto per essere inviato
+// via TCP raw socket a una stampante termica (o all&#039;emulatore di sviluppo).
+
+const { ThermalPrinter, PrinterTypes } = require(&#039;node-thermal-printer&#039;)
+
+// Mappa modello → tipo libreria
+const MODELLI = {
+    EPSON: PrinterTypes.EPSON,
+    STAR: PrinterTypes.STAR,
+    CUSTOM: PrinterTypes.CUSTOM,
+    DARUMA: PrinterTypes.DARUMA,
+}
+
+function risolviTipo(modello) {
+    return MODELLI[(modello || &#039;EPSON&#039;).toUpperCase()] || PrinterTypes.EPSON
+}
+
+function intestazione(printer, comanda) {
+    if (comanda.asporto) {
+        printer.alignCenter()
+        printer.setTextDoubleHeight()
+        printer.setTextDoubleWidth()
+        printer.bold(true)
+        printer.println(&#039;ASPORTO&#039;)
+        printer.bold(false)
+        printer.setTextNormal()
+    }
+    printer.alignCenter()
+    printer.bold(true)
+    printer.println(`REPARTO ${String(comanda.reparto || &#039;&#039;).toUpperCase()}`)
+    printer.bold(false)
+    printer.drawLine()
+}
+
+function meta(printer, comanda) {
+    const data = new Date(comanda.timestamp || Date.now())
+    const ora = data.toLocaleTimeString(&#039;it-IT&#039;, { hour: &#039;2-digit&#039;, minute: &#039;2-digit&#039;, second: &#039;2-digit&#039; })
+    printer.alignLeft()
+    printer.println(`Ordine #${comanda.ordine_id}    ${ora}`)
+    if (typeof comanda.tavolo === &#039;number&#039;) {
+        printer.println(`Tavolo: ${comanda.tavolo}`)
+    }
+    printer.drawLine()
+}
+
+function corpo(printer, comanda) {
+    printer.alignLeft()
+    // Righe ordinate per P decrescente (lo smistatore già le passa così)
+    for (const riga of comanda.righe || []) {
+        printer.bold(true)
+        printer.println(`${riga.quantita}x  ${riga.nome}`)
+        printer.bold(false)
+        // Note per porzione: deduplica per non stampare la stessa nota N volte
+        const noteUniche = new Map()
+        for (const n of (riga.note || [])) {
+            const k = `${n.numero_porzione || 0}|${n.testo}`
+            if (!noteUniche.has(k)) noteUniche.set(k, n)
+        }
+        for (const n of noteUniche.values()) {
+            const prefisso = n.numero_porzione ? `  [${n.numero_porzione}] &gt; ` : &#039;  &gt; &#039;
+            printer.println(`${prefisso}${n.testo}`)
+        }
+    }
+}
+
+function piede(printer) {
+    printer.drawLine()
+    printer.alignCenter()
+    printer.println(&#039;** FINE COMANDA **&#039;)
+    printer.cut()
+}
+
+function intestazioneCopiaCliente(printer, dati) {
+    if (dati.asporto) {
+        printer.alignCenter()
+        printer.setTextDoubleHeight()
+        printer.setTextDoubleWidth()
+        printer.bold(true)
+        printer.println(&#039;ASPORTO&#039;)
+        printer.bold(false)
+        printer.setTextNormal()
+    }
+    printer.alignCenter()
+    printer.bold(true)
+    printer.println(&#039;COPIA CLIENTE&#039;)
+    printer.bold(false)
+    printer.drawLine()
+}
+
+function corpoCopiaCliente(printer, dati) {
+    printer.alignLeft()
+    for (const riga of dati.righe || []) {
+        const prezzo = parseFloat(riga.prezzo || 0)
+        const subtotale = parseFloat((riga.quantita * prezzo).toFixed(2))
+        printer.bold(true)
+        printer.println(`${riga.quantita}x  ${riga.nome}`)
+        printer.bold(false)
+        printer.println(`    ${prezzo.toFixed(2)} EUR  =  ${subtotale.toFixed(2)} EUR`)
+        const noteUniche = new Map()
+        for (const n of (riga.note || [])) {
+            const k = `${n.numero_porzione || 0}|${n.testo}`
+            if (!noteUniche.has(k)) noteUniche.set(k, n)
+        }
+        for (const n of noteUniche.values()) {
+            const prefisso = n.numero_porzione ? `  [${n.numero_porzione}] &gt; ` : &#039;  &gt; &#039;
+            printer.println(`${prefisso}${n.testo}`)
+        }
+    }
+    printer.drawLine()
+    printer.bold(true)
+    printer.println(`TOTALE:     ${parseFloat(dati.totale || 0).toFixed(2)} EUR`)
+    printer.println(`PAGATO:     ${parseFloat(dati.importo_pagato || 0).toFixed(2)} EUR`)
+    if (dati.resto != null &amp;&amp; dati.resto &gt; 0) {
+        printer.println(`RESTO:      ${dati.resto.toFixed(2)} EUR`)
+    }
+    printer.bold(false)
+}
+
+async function formattaCopiaCliente(dati, opzioni = {}) {
+    const printer = new ThermalPrinter({
+        type: risolviTipo(opzioni.modello),
+        interface: &#039;tcp://127.0.0.1:1&#039;,
+        characterSet: &#039;PC858_EURO&#039;,
+        removeSpecialCharacters: false,
+        lineCharacter: &#039;-&#039;,
+        width: opzioni.larghezza_caratteri || 32,
+    })
+
+    intestazioneCopiaCliente(printer, dati)
+    meta(printer, dati)
+    corpoCopiaCliente(printer, dati)
+    printer.drawLine()
+    printer.alignCenter()
+    printer.println(&#039;** FINE SCONTRINO **&#039;)
+    printer.cut()
+
+    return printer.getBuffer()
+}
+
+// Costruisce un buffer ESC/POS per la comanda data.
+// L&#039;oggetto opzioni può specificare: modello, larghezza_caratteri (default 32).
+async function formattaComanda(comanda, opzioni = {}) {
+    // interface fittizia: la libreria la richiede per istanziare, ma noi usiamo
+    // solo getBuffer() — l&#039;I/O reale lo gestisce il dispatcher via net.Socket().
+    const printer = new ThermalPrinter({
+        type: risolviTipo(opzioni.modello),
+        interface: &#039;tcp://127.0.0.1:1&#039;,
+        characterSet: &#039;PC858_EURO&#039;,
+        removeSpecialCharacters: false,
+        lineCharacter: &#039;-&#039;,
+        width: opzioni.larghezza_caratteri || 32,
+    })
+
+    intestazione(printer, comanda)
+    meta(printer, comanda)
+    corpo(printer, comanda)
+    piede(printer)
+
+    return printer.getBuffer()
+}
+
+// Espande una comanda in N buffer secondo la modalità di stampa.
+// - singola_multipla (default): 1 buffer con tutte le righe
+// - singola_singola: N buffer (uno per porzione di ogni riga)
+// - doppia_copia: 2 buffer identici
+async function pagineDaInviare(comanda, modalita_stampa = &#039;singola_multipla&#039;, opzioni = {}) {
+    const modalita = String(modalita_stampa || &#039;singola_multipla&#039;).toLowerCase()
+
+    if (modalita === &#039;doppia_copia&#039;) {
+        const buf = await formattaComanda(comanda, opzioni)
+        return [buf, buf]
+    }
+
+    if (modalita === &#039;singola_singola&#039;) {
+        const pagine = []
+        for (const riga of (comanda.righe || [])) {
+            for (let i = 1; i &lt;= riga.quantita; i++) {
+                const notePorzione = (riga.note || []).filter(n =&gt; !n.numero_porzione || n.numero_porzione === i)
+                const comandaPorzione = {
+                    ...comanda,
+                    righe: [{ ...riga, quantita: 1, note: notePorzione.map(n =&gt; ({ ...n, numero_porzione: undefined })) }],
+                }
+                pagine.push(await formattaComanda(comandaPorzione, opzioni))
+            }
+        }
+        return pagine.length &gt; 0 ? pagine : [await formattaComanda(comanda, opzioni)]
+    }
+
+    // singola_multipla
+    return [await formattaComanda(comanda, opzioni)]
+}
+
+// Pagina di test (richiesta da admin per verificare connessione + carta)
+async function pagineDiTest(stampante) {
+    const comandaTest = {
+        ordine_id: 0,
+        reparto: stampante.reparto,
+        asporto: false,
+        timestamp: Date.now(),
+        righe: [
+            { quantita: 1, nome: &#039;PAGINA DI TEST&#039;, note: [] },
+            { quantita: 1, nome: `${stampante.nome || stampante.reparto}`, note: [{ testo: `${stampante.indirizzo_ip}:${stampante.porta}` }] },
+            { quantita: 1, nome: &#039;Stampa OK se leggi questo&#039;, note: [] },
+        ],
+    }
+    return pagineDaInviare(comandaTest, &#039;singola_multipla&#039;, { modello: stampante.modello })
+}
+
+module.exports = {
+    formattaComanda,
+    formattaCopiaCliente,
+    pagineDaInviare,
+    pagineDiTest,
+}
+</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
